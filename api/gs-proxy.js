@@ -15,8 +15,11 @@ export default async function handler(req, res) {
   }
 
   try {
-    const base = process.env.GS_WEBAPP_URL;
-    const token = process.env.GS_TOKEN || "";
+    // Allow overriding via query params (for quick setup/testing)
+    const qBase = req.query.url;
+    const qToken = req.query.token;
+    const base = (typeof qBase === 'string' && qBase) || process.env.GS_WEBAPP_URL;
+    const token = (typeof qToken === 'string' ? qToken : '') || process.env.GS_TOKEN || "";
     if (!base) {
       return res.status(500).json({ ok: false, error: "Missing env GS_WEBAPP_URL" });
     }
@@ -24,7 +27,7 @@ export default async function handler(req, res) {
     const limit = Math.max(1, Math.min(500, Number(req.query.limit || 100)));
 
     // Build Apps Script doGet URL: append ?op=list&limit=...&token=...
-    const target = new URL(base);
+  const target = new URL(base);
     target.searchParams.set("op", "list");
     target.searchParams.set("limit", String(limit));
     if (token) target.searchParams.set("token", token);

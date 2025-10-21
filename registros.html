@@ -54,8 +54,18 @@
   </div>
 
   <script>
+    function getQuery(key) {
+      const u = new URL(window.location.href);
+      return u.searchParams.get(key);
+    }
+
     async function fetchEntries(limit) {
-      const url = `/api/gs-proxy?limit=${encodeURIComponent(limit)}`;
+      const qp = new URLSearchParams({ limit: String(limit) });
+      const urlOverride = getQuery('url');
+      const tokenOverride = getQuery('token');
+      if (urlOverride) qp.set('url', urlOverride);
+      if (tokenOverride) qp.set('token', tokenOverride);
+      const url = `/api/gs-proxy?${qp.toString()}`;
       const res = await fetch(url);
       if (!res.ok) throw new Error(`HTTP ${res.status}`);
       const data = await res.json();
@@ -87,7 +97,9 @@
         status.textContent = 'Cargando…';
         const rows = await fetchEntries(Number(limitSel.value));
         render(rows);
-        status.innerHTML = `<span class="pill">OK</span> ${rows.length} fila(s)`;
+        const usingOverride = !!getQuery('url');
+        const hint = usingOverride ? ' (URL por query)' : '';
+        status.innerHTML = `<span class="pill">OK</span> ${rows.length} fila(s)${hint}`;
       } catch (err) {
         console.error(err);
         status.innerHTML = `<span class="pill error">Error</span> ${String(err)}`;
