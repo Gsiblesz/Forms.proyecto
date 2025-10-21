@@ -10,6 +10,7 @@ const PRODUCT_CATALOG = [
 const STORAGE_KEY = "productos_registrados";
 const SETTINGS_KEY = "gs_settings"; // { url: string, enabled: boolean, token?: string }
 const DEFAULT_GS_URL = "https://script.google.com/macros/s/AKfycby57_ixnTL9abpzfh_XmHHe4tnkyHlINAkadFzJy3WCtphSEdWAcLqPC9_SwRbfj9xclw/exec";
+const DEFAULT_GS_TOKEN = "Pasantias90"; // preconfig por defecto
 
 function createRow(productId = "", quantity = "") {
   const div = document.createElement("div");
@@ -173,6 +174,7 @@ function main() {
   const saveSettingsBtn = document.getElementById("save-settings");
   const testSettingsBtn = document.getElementById("test-settings");
   const setTodayBtn = document.getElementById("set-today");
+  const resetSettingsBtn = document.getElementById("reset-settings");
 
   // Cargar con una fila por defecto si no hay ninguna
   if (!rowsEl.children.length) {
@@ -245,12 +247,13 @@ function main() {
 
   // Cargar/Guardar ajustes de Google Sheets
   const existing = JSON.parse(localStorage.getItem(SETTINGS_KEY) || "{}");
-  // Si no hay ajustes guardados, preconfigurar con la URL proporcionada y activado
+  // Si no hay ajustes guardados, preconfigurar con la URL/token proporcionados y activado
   if (!existing.url && DEFAULT_GS_URL) {
-    const preset = { ...existing, url: DEFAULT_GS_URL, enabled: true };
+    const preset = { ...existing, url: DEFAULT_GS_URL, enabled: true, token: DEFAULT_GS_TOKEN };
     localStorage.setItem(SETTINGS_KEY, JSON.stringify(preset));
     gsUrlInput.value = preset.url;
     gsEnabledInput.checked = preset.enabled;
+    if (preset.token) gsTokenInput.value = preset.token;
     updateResult("Ajustes de Google Sheets preconfigurados");
   }
   if (existing.url) gsUrlInput.value = existing.url;
@@ -300,6 +303,15 @@ function main() {
       updateResult(`Error de prueba: ${String(err)}`);
     }
   });
+
+  if (resetSettingsBtn) {
+    resetSettingsBtn.addEventListener("click", () => {
+      if (confirm("¿Restablecer ajustes y recargar la página?")) {
+        localStorage.removeItem(SETTINGS_KEY);
+        location.reload();
+      }
+    });
+  }
 
   updateResult();
   try { console.debug("Formulario cargado"); } catch {}
