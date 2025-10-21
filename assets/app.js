@@ -172,6 +172,7 @@ function main() {
   const gsTokenInput = document.getElementById("gs-token");
   const saveSettingsBtn = document.getElementById("save-settings");
   const testSettingsBtn = document.getElementById("test-settings");
+  const setTodayBtn = document.getElementById("set-today");
 
   // Cargar con una fila por defecto si no hay ninguna
   if (!rowsEl.children.length) {
@@ -179,6 +180,19 @@ function main() {
   }
 
   addBtn.addEventListener("click", () => rowsEl.appendChild(createRow()));
+
+  // Botón rápido para establecer la fecha de hoy (YYYY-MM-DD)
+  if (setTodayBtn) {
+    setTodayBtn.addEventListener("click", () => {
+      const d = new Date();
+      const yyyy = d.getFullYear();
+      const mm = String(d.getMonth() + 1).padStart(2, "0");
+      const dd = String(d.getDate()).padStart(2, "0");
+      const iso = `${yyyy}-${mm}-${dd}`;
+      const dateInput = document.getElementById("meta-date");
+      if (dateInput) dateInput.value = iso;
+    });
+  }
 
   form.addEventListener("submit", async (e) => {
     e.preventDefault();

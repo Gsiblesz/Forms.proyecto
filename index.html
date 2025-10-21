@@ -25,7 +25,10 @@
           </div>
           <div>
             <label>Fecha</label>
-            <input id="meta-date" type="date" />
+            <div style="display:flex; gap:8px; align-items:center">
+              <input id="meta-date" type="date" placeholder="YYYY-MM-DD" />
+              <button type="button" id="set-today" class="btn outline" title="Usar fecha de hoy">Hoy</button>
+            </div>
           </div>
         </div>
         <div id="rows" class="rows"></div>
