@@ -1,0 +1,11 @@
+# Ignore unused folders and heavy artifacts for this static deploy
+backend/
+frontend/
+**/node_modules/
+**/.next/
+**/.cache/
+**/.DS_Store
+**/.env
+**/.env.*
+**/dist/
+**/build/
