@@ -75,7 +75,23 @@ async function maybeSendToSheets(entry) {
   const settings = JSON.parse(localStorage.getItem(SETTINGS_KEY) || "{}");
   if (!settings.enabled || !settings.url) return { sent: false };
   try {
-    const payload = JSON.stringify(settings.token ? { ...entry, token: settings.token } : entry);
+    const payloadObj = settings.token ? { ...entry, token: settings.token } : entry;
+    const payload = JSON.stringify(payloadObj);
+    // Intento 0: proxy en Vercel para lectura de respuesta y ocultar token del cliente
+    try {
+      const res = await fetch("/api/gs-submit", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ url: settings.url, entry: payloadObj }),
+      });
+      if (res.ok) {
+        const data = await res.json().catch(() => ({}));
+        return { sent: true, data, via: "proxy" };
+      }
+      // si no es ok, cae a CORS directo
+    } catch (_) {
+      // ignorar errores del proxy y seguir
+    }
     // Intento 1: CORS normal (text/plain should be simple request)
     try {
       const res = await fetch(settings.url, {
@@ -213,7 +229,11 @@ function main() {
     let msg = `Guardado ${new Date(entry.at).toLocaleString()} (${entry.items.length} item/s)`;
     const send = await maybeSendToSheets(entry);
     if (send.sent) {
-      msg += send.data?.mode === "no-cors" ? " — enviado a Google Sheets (sin lectura)" : " — enviado a Google Sheets";
+      if (send.via === "proxy") {
+        msg += " — enviado a Google Sheets (con lectura vía proxy)";
+      } else {
+        msg += send.data?.mode === "no-cors" ? " — enviado a Google Sheets (sin lectura)" : " — enviado a Google Sheets";
+      }
     } else if (send.error) {
       msg += ` — no se pudo enviar a Sheets (${send.error})`;
     }
@@ -280,6 +300,19 @@ function main() {
       ...(token ? { token } : {}),
     };
     try {
+      // Intento 0: proxy
+      try {
+        const res = await fetch("/api/gs-submit", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ url, entry: probe }),
+        });
+        if (res.ok) {
+          const json = await res.json();
+          updateResult(`Prueba vía proxy: HTTP ${res.status} — ${JSON.stringify(json).substring(0, 200)}...`);
+          return;
+        }
+      } catch (_) {}
       // Intento 1: CORS normal
       try {
         const res = await fetch(url, {
