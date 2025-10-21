@@ -9,7 +9,7 @@ const PRODUCT_CATALOG = [
 
 const STORAGE_KEY = "productos_registrados";
 const SETTINGS_KEY = "gs_settings"; // { url: string, enabled: boolean, token?: string }
-const DEFAULT_GS_URL = "https://script.google.com/macros/s/AKfycbw48kiysTSqEhB0OiCkJ9XpoArbWBnbPDzMZlRDo-pecPVWubA9_toORdn0LBAMZjaXhA/exec";
+const DEFAULT_GS_URL = "https://script.google.com/macros/s/AKfycby57_ixnTL9abpzfh_XmHHe4tnkyHlINAkadFzJy3WCtphSEdWAcLqPC9_SwRbfj9xclw/exec";
 
 function createRow(productId = "", quantity = "") {
   const div = document.createElement("div");
