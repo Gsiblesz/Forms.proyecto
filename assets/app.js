@@ -263,13 +263,25 @@ function main() {
       ...(token ? { token } : {}),
     };
     try {
-      const res = await fetch(url, {
-        method: "POST",
-        headers: { "Content-Type": "text/plain;charset=utf-8" },
-        body: JSON.stringify(probe),
-      });
-      const text = await res.text();
-      updateResult(`Prueba: HTTP ${res.status} — ${text.substring(0, 200)}...`);
+      // Intento 1: CORS normal
+      try {
+        const res = await fetch(url, {
+          method: "POST",
+          headers: { "Content-Type": "text/plain;charset=utf-8" },
+          body: JSON.stringify(probe),
+          mode: "cors",
+        });
+        const text = await res.text();
+        updateResult(`Prueba: HTTP ${res.status} — ${text.substring(0, 200)}...`);
+      } catch (corsErr) {
+        // Intento 2: no-cors (fire-and-forget), no podremos leer respuesta
+        await fetch(url, {
+          method: "POST",
+          body: JSON.stringify(probe),
+          mode: "no-cors",
+        });
+        updateResult("Prueba enviada (sin lectura, no-cors). Revisa la hoja 'Entradas'.");
+      }
     } catch (err) {
       updateResult(`Error de prueba: ${String(err)}`);
     }
