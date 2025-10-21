@@ -75,16 +75,27 @@ async function maybeSendToSheets(entry) {
   if (!settings.enabled || !settings.url) return { sent: false };
   try {
     const payload = JSON.stringify(settings.token ? { ...entry, token: settings.token } : entry);
-    // Enviar como text/plain para evitar preflight en algunos navegadores
-    const res = await fetch(settings.url, {
-      method: "POST",
-      headers: { "Content-Type": "text/plain;charset=utf-8" },
-      body: payload,
-      mode: "cors",
-    });
-    if (!res.ok) throw new Error(`HTTP ${res.status}`);
-    const data = await res.json().catch(() => ({}));
-    return { sent: true, data };
+    // Intento 1: CORS normal (text/plain should be simple request)
+    try {
+      const res = await fetch(settings.url, {
+        method: "POST",
+        headers: { "Content-Type": "text/plain;charset=utf-8" },
+        body: payload,
+        mode: "cors",
+      });
+      if (!res.ok) throw new Error(`HTTP ${res.status}`);
+      const data = await res.json().catch(() => ({}));
+      return { sent: true, data };
+    } catch (corsErr) {
+      // Intento 2: no-cors (fire-and-forget). No podremos leer respuesta.
+      await fetch(settings.url, {
+        method: "POST",
+        body: payload,
+        mode: "no-cors",
+        // sin headers personalizados para evitar preflight
+      });
+      return { sent: true, data: { mode: "no-cors" } };
+    }
   } catch (err) {
     console.error("Error enviando a Sheets:", err);
     return { sent: false, error: String(err) };
@@ -186,7 +197,7 @@ function main() {
     let msg = `Guardado ${new Date(entry.at).toLocaleString()} (${entry.items.length} item/s)`;
     const send = await maybeSendToSheets(entry);
     if (send.sent) {
-      msg += " — enviado a Google Sheets";
+      msg += send.data?.mode === "no-cors" ? " — enviado a Google Sheets (sin lectura)" : " — enviado a Google Sheets";
     } else if (send.error) {
       msg += ` — no se pudo enviar a Sheets (${send.error})`;
     }
