@@ -229,6 +229,7 @@ function main() {
   const testSettingsBtn = document.getElementById("test-settings");
   const setTodayBtn = document.getElementById("set-today");
   const resetSettingsBtn = document.getElementById("reset-settings");
+  const hasSettingsUI = !!document.querySelector('.settings');
 
   // Cargar con una fila por defecto si no hay ninguna
   if (!rowsEl.children.length) {
@@ -288,7 +289,7 @@ function main() {
     document.getElementById("meta-date").value = "";
   });
 
-  exportBtn.addEventListener("click", () => {
+  if (exportBtn) exportBtn.addEventListener("click", () => {
     const entries = JSON.parse(localStorage.getItem(STORAGE_KEY) || "[]");
     if (entries.length === 0) {
       updateResult("No hay registros para exportar");
@@ -299,50 +300,41 @@ function main() {
     download(`productos_${date}.csv`, csv, "text/csv;charset=utf-8");
   });
 
-  clearBtn.addEventListener("click", () => {
+  if (clearBtn) clearBtn.addEventListener("click", () => {
     if (confirm("¿Borrar todos los registros guardados?")) {
       localStorage.removeItem(STORAGE_KEY);
       updateResult();
     }
   });
 
-  // Cargar/Guardar ajustes de Google Sheets
-  // Si no es admin, ocultar ajustes y exportaciones
-  if (!isAdmin) {
-    const settingsSection = document.querySelector(".settings");
-    const exportsSection = document.querySelector(".exports");
-    if (settingsSection) settingsSection.style.display = "none";
-    if (exportsSection) exportsSection.style.display = "none";
-  }
-
-  const existing = JSON.parse(localStorage.getItem(SETTINGS_KEY) || "{}");
-  // Si no hay ajustes guardados, preconfigurar con la URL/token proporcionados y activado
-  if (!existing.url && DEFAULT_GS_URL) {
-    const preset = { ...existing, url: DEFAULT_GS_URL, enabled: true, token: DEFAULT_GS_TOKEN };
-    localStorage.setItem(SETTINGS_KEY, JSON.stringify(preset));
-    if (isAdmin) {
-      gsUrlInput.value = preset.url;
-      gsEnabledInput.checked = preset.enabled;
-      if (preset.token) gsTokenInput.value = preset.token;
+  // Cargar/Guardar ajustes de Google Sheets (solo si hay UI presente; en la portada)
+  if (hasSettingsUI) {
+    const existing = JSON.parse(localStorage.getItem(SETTINGS_KEY) || "{}");
+    if (!existing.url && DEFAULT_GS_URL) {
+      const preset = { ...existing, url: DEFAULT_GS_URL, enabled: true, token: DEFAULT_GS_TOKEN };
+      localStorage.setItem(SETTINGS_KEY, JSON.stringify(preset));
+      if (isAdmin && gsUrlInput && gsEnabledInput) {
+        gsUrlInput.value = preset.url;
+        gsEnabledInput.checked = preset.enabled;
+        if (gsTokenInput && preset.token) gsTokenInput.value = preset.token;
+      }
+      if (isAdmin) updateResult("Ajustes de Google Sheets preconfigurados");
     }
-    updateResult("Ajustes de Google Sheets preconfigurados");
-  }
-  if (isAdmin) {
-    if (existing.url) gsUrlInput.value = existing.url;
-    if (typeof existing.enabled === "boolean") gsEnabledInput.checked = existing.enabled;
-    if (existing.token) gsTokenInput.value = existing.token;
-    saveSettingsBtn.addEventListener("click", () => {
-    const settings = {
-      url: gsUrlInput.value.trim(),
-      enabled: gsEnabledInput.checked,
-      token: gsTokenInput.value.trim() || undefined,
-    };
-    localStorage.setItem(SETTINGS_KEY, JSON.stringify(settings));
-    updateResult("Ajustes guardados");
-    });
-  }
-
-  if (isAdmin) testSettingsBtn.addEventListener("click", async () => {
+    if (isAdmin && gsUrlInput && gsEnabledInput) {
+      if (existing.url) gsUrlInput.value = existing.url;
+      if (typeof existing.enabled === "boolean") gsEnabledInput.checked = existing.enabled;
+      if (existing.token && gsTokenInput) gsTokenInput.value = existing.token;
+      if (saveSettingsBtn) saveSettingsBtn.addEventListener("click", () => {
+        const settings = {
+          url: gsUrlInput.value.trim(),
+          enabled: gsEnabledInput.checked,
+          token: gsTokenInput?.value.trim() || undefined,
+        };
+        localStorage.setItem(SETTINGS_KEY, JSON.stringify(settings));
+        updateResult("Ajustes guardados");
+      });
+    }
+    if (isAdmin && testSettingsBtn) testSettingsBtn.addEventListener("click", async () => {
     const url = gsUrlInput.value.trim();
     if (!url) return updateResult("Primero ingresa la URL del Web App");
     const token = gsTokenInput.value.trim();
@@ -400,7 +392,8 @@ function main() {
     }
   });
 
-  if (resetSettingsBtn) {
+  }
+  if (hasSettingsUI && resetSettingsBtn) {
     resetSettingsBtn.addEventListener("click", () => {
       if (confirm("¿Restablecer ajustes y recargar la página?")) {
         localStorage.removeItem(SETTINGS_KEY);

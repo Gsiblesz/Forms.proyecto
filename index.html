@@ -48,27 +48,7 @@
 
       <section id="result" class="result hidden"></section>
 
-      <section class="settings">
-        <h2>Integración con Google Sheets</h2>
-        <label style="display:block;margin:8px 0 4px">URL del Web App (Apps Script)</label>
-        <input id="gs-url" type="url" placeholder="https://script.google.com/macros/s/.../exec" style="width:100%;padding:10px;border-radius:10px;border:1px solid var(--border);background:#0f1533;color:var(--text)" />
-        <label style="display:block;margin:12px 0 4px">Token secreto (opcional, recomendado)</label>
-        <input id="gs-token" type="text" placeholder="Ej: 9b2c1d... (el mismo que validas en Apps Script)" style="width:100%;padding:10px;border-radius:10px;border:1px solid var(--border);background:#0f1533;color:var(--text)" />
-        <label style="display:flex;gap:8px;align-items:center;margin-top:8px">
-          <input id="gs-enabled" type="checkbox" /> Enviar a Google Sheets al guardar
-        </label>
-        <div style="margin-top:8px; display:flex; gap:8px; flex-wrap:wrap">
-          <button id="save-settings" class="btn">Guardar ajustes</button>
-          <button id="test-settings" class="btn outline">Probar conexión</button>
-          <button id="reset-settings" class="btn danger" title="Borrar ajustes guardados y recargar">Restablecer ajustes</button>
-        </div>
-        <small class="muted">Consejo: despliega tu Apps Script como Web App y copia la URL aquí. El token permite rechazar envíos no autorizados.</small>
-      </section>
-
-      <section class="exports">
-        <button id="export-csv" class="btn outline">Exportar CSV</button>
-        <button id="clear-storage" class="btn danger">Borrar registros</button>
-      </section>
+      <!-- Ajustes y opciones de exportación se mueven al menú para administradores -->
 
       <details class="help">
         <summary>¿Cómo funciona?</summary>
