@@ -7,7 +7,10 @@
     <link rel="stylesheet" href="./assets/styles.css" />
   </head>
   <body>
-    <main class="container">
+    <div class="brand" style="position:fixed; top:12px; left:16px; display:flex; gap:12px; align-items:center; z-index:10;">
+      <img src="./assets/brand.png" alt="PAN DE TATA" onerror="this.src='./assets/brand.svg'" style="height:44px;width:auto;border-radius:6px;box-shadow:0 0 0 2px #000;background:#000" />
+    </div>
+    <main class="container" style="margin-top:80px">
       <div style="display:flex;align-items:baseline;gap:12px;flex-wrap:wrap">
         <h1 id="form-title">Registro de Productos</h1>
         <a class="muted" href="./menu.html">Cambiar formulario</a>
