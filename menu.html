@@ -42,11 +42,32 @@
         </div>
       </div>
       <div id="cards" class="grid" style="display:none"></div>
+
+      <section id="admin" style="display:none; margin-top:16px; padding:12px; border:1px solid var(--border); border-radius:12px; background:#0f0f12;">
+        <h2>Panel de administración</h2>
+        <div style="display:grid; gap:8px; max-width:700px">
+          <label>URL del Web App (Apps Script)</label>
+          <input id="gs-url" type="url" placeholder="https://script.google.com/macros/s/.../exec" style="width:100%;padding:10px;border-radius:10px;border:1px solid var(--border);background:#0f1533;color:var(--text)" />
+          <label>Token secreto</label>
+          <input id="gs-token" type="text" placeholder="Pasantias90" style="width:100%;padding:10px;border-radius:10px;border:1px solid var(--border);background:#0f1533;color:var(--text)" />
+          <label style="display:flex;gap:8px;align-items:center;margin-top:8px">
+            <input id="gs-enabled" type="checkbox" /> Enviar a Google Sheets al guardar
+          </label>
+          <div style="display:flex; gap:8px; flex-wrap:wrap">
+            <button id="save-settings" class="btn">Guardar ajustes</button>
+            <button id="test-settings" class="btn outline">Probar conexión</button>
+            <button id="reset-settings" class="btn danger">Restablecer ajustes</button>
+            <button id="clear-storage" class="btn danger">Borrar registros locales</button>
+          </div>
+          <div id="admin-result" class="muted" style="margin-top:6px"></div>
+        </div>
+      </section>
     </main>
     <div class="credit">Elaborado por el pasante de producción <strong>Gerardo Siblesz</strong></div>
     <script src="./assets/forms.js"></script>
     <script>
   const ROLE_KEY = 'app_role';
+  const SETTINGS_KEY = 'gs_settings';
 
       function renderCards(){
         const cont = document.getElementById('cards');
@@ -70,20 +91,23 @@
         const authOk = document.getElementById('auth-ok');
         const cards = document.getElementById('cards');
         const roleLabel = document.getElementById('role-label');
+        const admin = document.getElementById('admin');
         if (role){
           authForm.style.display = 'none';
           authOk.style.display = '';
-          roleLabel.textContent = 'Rol: Trabajador';
+          roleLabel.textContent = role === 'admin' ? 'Rol: Administrador' : 'Rol: Trabajador';
           cards.style.display = '';
           renderCards();
+          admin.style.display = role === 'admin' ? '' : 'none';
         } else {
           authForm.style.display = '';
           authOk.style.display = 'none';
           cards.style.display = 'none';
+          admin.style.display = 'none';
         }
       }
 
-      // Login simple por clave fija (solo trabajadores)
+      // Login simple por clave (trabajador y admin, pero solo se muestra la clave de trabajador)
       document.getElementById('enter').addEventListener('click', ()=>{
         const p = document.getElementById('pass').value.trim();
         const msg = document.getElementById('auth-msg');
@@ -91,6 +115,10 @@
           localStorage.setItem(ROLE_KEY, 'worker');
           msg.textContent = '';
           showRole('worker');
+        } else if (p === 'TATADEPAN11') {
+          localStorage.setItem(ROLE_KEY, 'admin');
+          msg.textContent = '';
+          showRole('admin');
         } else {
           msg.textContent = 'Clave incorrecta';
         }
@@ -104,7 +132,53 @@
       // Estado inicial
       showRole(localStorage.getItem(ROLE_KEY));
 
-      // Sin panel de administración ni ajustes en el menú
+      // Lógica del panel admin
+      const adminResult = document.getElementById('admin-result');
+      const gsUrlInput = document.getElementById('gs-url');
+      const gsTokenInput = document.getElementById('gs-token');
+      const gsEnabledInput = document.getElementById('gs-enabled');
+      const existing = JSON.parse(localStorage.getItem(SETTINGS_KEY) || '{}');
+      if (existing.url) gsUrlInput.value = existing.url;
+      if (typeof existing.enabled === 'boolean') gsEnabledInput.checked = existing.enabled;
+      if (existing.token) gsTokenInput.value = existing.token;
+
+      document.getElementById('save-settings').addEventListener('click', ()=>{
+        const settings = {
+          url: gsUrlInput.value.trim(),
+          enabled: gsEnabledInput.checked,
+          token: gsTokenInput.value.trim() || undefined,
+        };
+        localStorage.setItem(SETTINGS_KEY, JSON.stringify(settings));
+        adminResult.textContent = 'Ajustes guardados';
+      });
+
+      document.getElementById('test-settings').addEventListener('click', async ()=>{
+        const url = gsUrlInput.value.trim();
+        if (!url) { adminResult.textContent = 'Primero ingresa la URL'; return; }
+        const token = gsTokenInput.value.trim();
+        const probe = { id: 'test-'+Math.random().toString(36).slice(2,6), at: new Date().toISOString(), items:[{product:'PING',quantity:1}], ...(token?{token}:{}) };
+        try {
+          const res = await fetch('/api/gs-submit', { method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({ url, entry: probe }) });
+          const json = await res.json().catch(()=>({}));
+          adminResult.textContent = `HTTP ${res.status} — ${JSON.stringify(json).substring(0,200)}...`;
+        } catch (err) {
+          adminResult.textContent = String(err);
+        }
+      });
+
+      document.getElementById('reset-settings').addEventListener('click', ()=>{
+        if (confirm('¿Restablecer ajustes?')) {
+          localStorage.removeItem(SETTINGS_KEY);
+          adminResult.textContent = 'Ajustes restablecidos';
+        }
+      });
+
+      document.getElementById('clear-storage').addEventListener('click', ()=>{
+        if (confirm('¿Borrar registros locales?')) {
+          localStorage.removeItem('productos_registrados');
+          adminResult.textContent = 'Registros locales borrados';
+        }
+      });
     </script>
   </body>
 </html>
