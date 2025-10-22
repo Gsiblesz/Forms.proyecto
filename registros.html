@@ -50,7 +50,7 @@
         <tbody></tbody>
       </table>
     </div>
-    <p class="muted">Fuente: /api/gs-proxy → Apps Script doGet (con token).</p>
+  <p class="muted">Fuente: /api/gs-proxy → Apps Script doGet (con token). Puedes pasar ?sheet=NombreDePestaña en la URL.</p>
   </div>
 
   <script>
@@ -63,8 +63,10 @@
       const qp = new URLSearchParams({ limit: String(limit) });
       const urlOverride = getQuery('url');
       const tokenOverride = getQuery('token');
+      const sheet = getQuery('sheet');
       if (urlOverride) qp.set('url', urlOverride);
       if (tokenOverride) qp.set('token', tokenOverride);
+      if (sheet) qp.set('sheet', sheet);
       const url = `/api/gs-proxy?${qp.toString()}`;
       const res = await fetch(url);
       if (!res.ok) throw new Error(`HTTP ${res.status}`);
@@ -100,7 +102,9 @@
       const usingOverride = !!getQuery('url');
       const hint = usingOverride ? ' (URL por query)' : '';
       const usedUrl = getQuery('url') || 'env:GS_WEBAPP_URL';
-      status.innerHTML = `<span class="pill">OK</span> ${rows.length} fila(s)${hint} <span class="muted">Origen: ${usedUrl}</span>`;
+      const sheet = getQuery('sheet');
+      const sheetHint = sheet ? ` — sheet: ${sheet}` : '';
+      status.innerHTML = `<span class="pill">OK</span> ${rows.length} fila(s)${hint}${sheetHint} <span class="muted">Origen: ${usedUrl}</span>`;
       } catch (err) {
         console.error(err);
         status.innerHTML = `<span class="pill error">Error</span> ${String(err)}`;

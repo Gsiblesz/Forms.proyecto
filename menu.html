@@ -1,0 +1,41 @@
+<!doctype html>
+<html lang="es">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Selecciona un formulario</title>
+    <link rel="stylesheet" href="./assets/styles.css" />
+    <style>
+      .menu { max-width: 960px; margin: 24px auto; padding: 16px; }
+      .grid { display:grid; grid-template-columns: repeat(auto-fill, minmax(220px,1fr)); gap:16px; }
+      .card { border:1px solid var(--border); border-radius:12px; padding:16px; background:#0f0f12; }
+      .card h3 { margin:0 0 8px; font-size:16px; }
+      .swatch { height:8px; border-radius:6px; margin-bottom:12px; }
+      .card a { display:inline-block; margin-top:8px; }
+    </style>
+  </head>
+  <body>
+    <main class="menu">
+      <h1>Elige un formulario</h1>
+      <p class="muted">Cada botón abre el mismo registro pero apuntando a una pestaña distinta en Google Sheets.</p>
+      <div id="cards" class="grid"></div>
+    </main>
+    <script src="./assets/forms.js"></script>
+    <script>
+      function card(form){
+        const url = new URL('./index.html', location.href);
+        url.searchParams.set('form', form.id);
+        const a = document.createElement('div');
+        a.className = 'card';
+        a.innerHTML = `
+          <div class="swatch" style="background:${form.color}"></div>
+          <h3>${form.title}</h3>
+          <a class="btn" href="${url.toString()}">Abrir</a>
+        `;
+        return a;
+      }
+      const cont = document.getElementById('cards');
+      (window.FORMS||[]).forEach(f=> cont.appendChild(card(f)));
+    </script>
+  </body>
+</html>

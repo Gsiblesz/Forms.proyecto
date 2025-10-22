@@ -24,13 +24,15 @@ export default async function handler(req, res) {
       return res.status(500).json({ ok: false, error: "Missing env GS_WEBAPP_URL" });
     }
 
-    const limit = Math.max(1, Math.min(500, Number(req.query.limit || 100)));
+  const limit = Math.max(1, Math.min(500, Number(req.query.limit || 100)));
+  const sheet = typeof req.query.sheet === 'string' ? req.query.sheet : '';
 
     // Build Apps Script doGet URL: append ?op=list&limit=...&token=...
   const target = new URL(base);
     target.searchParams.set("op", "list");
     target.searchParams.set("limit", String(limit));
     if (token) target.searchParams.set("token", token);
+    if (sheet) target.searchParams.set("sheet", sheet);
 
     const gsRes = await fetch(target.toString(), { method: "GET" });
     const text = await gsRes.text();

@@ -1,5 +1,5 @@
-// Catálogo simple de productos (puedes editarlo o cargarlo desde un backend)
-const PRODUCT_CATALOG = [
+// Catálogo simple de productos por defecto; cada formulario puede sobreescribirlo en assets/forms.js
+let PRODUCT_CATALOG = [
   { id: "P-001", name: "Arroz 1Kg" },
   { id: "P-002", name: "Azúcar 1Kg" },
   { id: "P-003", name: "Aceite 1L" },
@@ -184,6 +184,31 @@ function download(filename, content, type = "text/plain") {
 }
 
 function main() {
+  // Detectar formulario desde query y configurar título/estilos
+  const u = new URL(window.location.href);
+  const formId = u.searchParams.get("form");
+  const cfg = (window.getFormConfig ? window.getFormConfig(formId) : null) || null;
+  if (cfg) {
+    // Catálogo por formulario (si se definió)
+    if (Array.isArray(cfg.catalog) && cfg.catalog.length) {
+      PRODUCT_CATALOG = cfg.catalog;
+    }
+    // Título y subtítulo
+    const titleEl = document.getElementById("form-title");
+    if (titleEl) titleEl.textContent = cfg.title;
+    const subEl = document.getElementById("form-subtitle");
+    if (subEl) subEl.textContent = `Pestaña en Google Sheets: ${cfg.sheetTab}`;
+    // Link del visor con sheet
+    const v = document.getElementById("viewer-link");
+    if (v) {
+      const link = new URL("./registros.html", location.href);
+      link.searchParams.set("sheet", cfg.sheetTab);
+      v.href = link.toString();
+    }
+    // Aplicar color suave como banda superior (opcional)
+    try { document.documentElement.style.setProperty("--accent", cfg.color); } catch {}
+  }
+
   const rowsEl = document.getElementById("rows");
   const addBtn = document.getElementById("add-row");
   const form = document.getElementById("products-form");
@@ -229,6 +254,9 @@ function main() {
       sede: document.getElementById("meta-sede").value.trim() || null,
       responsable: document.getElementById("meta-resp").value.trim() || null,
       fecha: document.getElementById("meta-date").value || null,
+      formId: cfg?.id || null,
+      formName: cfg?.title || null,
+      sheet: cfg?.sheetTab || null,
     };
     const entry = save(items, meta);
     let msg = `Guardado ${new Date(entry.at).toLocaleString()} (${entry.items.length} item/s)`;

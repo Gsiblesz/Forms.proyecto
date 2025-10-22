@@ -8,9 +8,13 @@
   </head>
   <body>
     <main class="container">
-      <h1>Registro de Productos</h1>
+      <div style="display:flex;align-items:baseline;gap:12px;flex-wrap:wrap">
+        <h1 id="form-title">Registro de Productos</h1>
+        <a class="muted" href="./menu.html">Cambiar formulario</a>
+      </div>
+      <p class="muted" id="form-subtitle" style="margin-top:-6px"></p>
       <p class="muted" style="margin-top:-6px">
-        <a href="./registros.html">Ver registros recientes →</a>
+        <a id="viewer-link" href="./registros.html">Ver registros recientes →</a>
       </p>
 
       <form id="products-form">
@@ -79,6 +83,7 @@
         JavaScript está deshabilitado. Actívalo para usar el formulario.
       </div>
     </noscript>
+    <script defer src="./assets/forms.js"></script>
     <script defer src="./assets/app.js"></script>
   </body>
 </html>
