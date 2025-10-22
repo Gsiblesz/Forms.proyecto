@@ -78,19 +78,24 @@ async function maybeSendToSheets(entry) {
     const payloadObj = settings.token ? { ...entry, token: settings.token } : entry;
     const payload = JSON.stringify(payloadObj);
     // Intento 0: proxy en Vercel para lectura de respuesta y ocultar token del cliente
-    try {
-      const res = await fetch("/api/gs-submit", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ url: settings.url, entry: payloadObj }),
-      });
-      if (res.ok) {
-        const data = await res.json().catch(() => ({}));
-        return { sent: true, data, via: "proxy" };
+    const canUseProxy = (() => {
+      try { return /^https?:/i.test(window.location.protocol); } catch { return false; }
+    })();
+    if (canUseProxy) {
+      try {
+        const res = await fetch("/api/gs-submit", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ url: settings.url, entry: payloadObj }),
+        });
+        if (res.ok) {
+          const data = await res.json().catch(() => ({}));
+          return { sent: true, data, via: "proxy" };
+        }
+        // si no es ok, cae a CORS directo
+      } catch (_) {
+        // ignorar errores del proxy y seguir
       }
-      // si no es ok, cae a CORS directo
-    } catch (_) {
-      // ignorar errores del proxy y seguir
     }
     // Intento 1: CORS normal (text/plain should be simple request)
     try {
@@ -300,19 +305,24 @@ function main() {
       ...(token ? { token } : {}),
     };
     try {
-      // Intento 0: proxy
-      try {
-        const res = await fetch("/api/gs-submit", {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ url, entry: probe }),
-        });
-        if (res.ok) {
-          const json = await res.json();
-          updateResult(`Prueba vía proxy: HTTP ${res.status} — ${JSON.stringify(json).substring(0, 200)}...`);
-          return;
-        }
-      } catch (_) {}
+      // Intento 0: proxy (solo si estamos corriendo bajo http(s))
+      const canUseProxy = (() => {
+        try { return /^https?:/i.test(window.location.protocol); } catch { return false; }
+      })();
+      if (canUseProxy) {
+        try {
+          const res = await fetch("/api/gs-submit", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ url, entry: probe }),
+          });
+          if (res.ok) {
+            const json = await res.json();
+            updateResult(`Prueba vía proxy: HTTP ${res.status} — ${JSON.stringify(json).substring(0, 200)}...`);
+            return;
+          }
+        } catch (_) {}
+      }
       // Intento 1: CORS normal
       try {
         const res = await fetch(url, {
@@ -325,12 +335,17 @@ function main() {
         updateResult(`Prueba: HTTP ${res.status} — ${text.substring(0, 200)}...`);
       } catch (corsErr) {
         // Intento 2: no-cors (fire-and-forget), no podremos leer respuesta
-        await fetch(url, {
-          method: "POST",
-          body: JSON.stringify(probe),
-          mode: "no-cors",
-        });
-        updateResult("Prueba enviada (sin lectura, no-cors). Revisa la hoja 'Entradas'.");
+        try {
+          await fetch(url, {
+            method: "POST",
+            body: JSON.stringify(probe),
+            mode: "no-cors",
+          });
+          updateResult("Prueba enviada (sin lectura, no-cors). Revisa la hoja 'Entradas'.");
+        } catch (ncErr) {
+          const hint = canUseProxy ? "" : " — pista: abre la página desde tu dominio de Vercel para usar el proxy";
+          updateResult(`Error de prueba: ${String(ncErr)}${hint}`);
+        }
       }
     } catch (err) {
       updateResult(`Error de prueba: ${String(err)}`);
