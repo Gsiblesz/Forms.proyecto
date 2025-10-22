@@ -11,6 +11,7 @@ const STORAGE_KEY = "productos_registrados";
 const SETTINGS_KEY = "gs_settings"; // { url: string, enabled: boolean, token?: string }
 const DEFAULT_GS_URL = "https://script.google.com/macros/s/AKfycby57_ixnTL9abpzfh_XmHHe4tnkyHlINAkadFzJy3WCtphSEdWAcLqPC9_SwRbfj9xclw/exec";
 const DEFAULT_GS_TOKEN = "Pasantias90"; // preconfig por defecto
+const ROLE_KEY = "app_role"; // 'worker' | 'admin'
 
 function createRow(productId = "", quantity = "") {
   const div = document.createElement("div");
@@ -184,6 +185,13 @@ function download(filename, content, type = "text/plain") {
 }
 
 function main() {
+  // Gate de acceso por rol: si no hay rol, volver a portada
+  const role = localStorage.getItem(ROLE_KEY);
+  if (!role) {
+    try { window.location.replace("./menu.html"); } catch { window.location.href = "./menu.html"; }
+    return;
+  }
+  const isAdmin = role === 'admin';
   // Detectar formulario desde query y configurar título/estilos
   const u = new URL(window.location.href);
   const formId = u.searchParams.get("form");
@@ -299,20 +307,31 @@ function main() {
   });
 
   // Cargar/Guardar ajustes de Google Sheets
+  // Si no es admin, ocultar ajustes y exportaciones
+  if (!isAdmin) {
+    const settingsSection = document.querySelector(".settings");
+    const exportsSection = document.querySelector(".exports");
+    if (settingsSection) settingsSection.style.display = "none";
+    if (exportsSection) exportsSection.style.display = "none";
+  }
+
   const existing = JSON.parse(localStorage.getItem(SETTINGS_KEY) || "{}");
   // Si no hay ajustes guardados, preconfigurar con la URL/token proporcionados y activado
   if (!existing.url && DEFAULT_GS_URL) {
     const preset = { ...existing, url: DEFAULT_GS_URL, enabled: true, token: DEFAULT_GS_TOKEN };
     localStorage.setItem(SETTINGS_KEY, JSON.stringify(preset));
-    gsUrlInput.value = preset.url;
-    gsEnabledInput.checked = preset.enabled;
-    if (preset.token) gsTokenInput.value = preset.token;
+    if (isAdmin) {
+      gsUrlInput.value = preset.url;
+      gsEnabledInput.checked = preset.enabled;
+      if (preset.token) gsTokenInput.value = preset.token;
+    }
     updateResult("Ajustes de Google Sheets preconfigurados");
   }
-  if (existing.url) gsUrlInput.value = existing.url;
-  if (typeof existing.enabled === "boolean") gsEnabledInput.checked = existing.enabled;
-  if (existing.token) gsTokenInput.value = existing.token;
-  saveSettingsBtn.addEventListener("click", () => {
+  if (isAdmin) {
+    if (existing.url) gsUrlInput.value = existing.url;
+    if (typeof existing.enabled === "boolean") gsEnabledInput.checked = existing.enabled;
+    if (existing.token) gsTokenInput.value = existing.token;
+    saveSettingsBtn.addEventListener("click", () => {
     const settings = {
       url: gsUrlInput.value.trim(),
       enabled: gsEnabledInput.checked,
@@ -320,9 +339,10 @@ function main() {
     };
     localStorage.setItem(SETTINGS_KEY, JSON.stringify(settings));
     updateResult("Ajustes guardados");
-  });
+    });
+  }
 
-  testSettingsBtn.addEventListener("click", async () => {
+  if (isAdmin) testSettingsBtn.addEventListener("click", async () => {
     const url = gsUrlInput.value.trim();
     if (!url) return updateResult("Primero ingresa la URL del Web App");
     const token = gsTokenInput.value.trim();
