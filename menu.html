@@ -12,9 +12,17 @@
       .card h3 { margin:0 0 8px; font-size:16px; }
       .swatch { height:8px; border-radius:6px; margin-bottom:12px; }
       .card a { display:inline-block; margin-top:8px; }
+      .brand { position:fixed; top:12px; left:16px; display:flex; gap:12px; align-items:center; z-index:10; }
+      .brand img { height:44px; width:auto; border-radius:6px; box-shadow:0 0 0 2px #000; background:#000; }
+      .brand-title { font-size:28px; font-weight:800; letter-spacing:.5px; }
+      .credit { position:fixed; right:16px; bottom:12px; font-size:12px; color:#9aa0a6; }
     </style>
   </head>
   <body>
+    <div class="brand">
+      <img id="brand-img" src="./assets/brand.png" alt="PAN DE TATA" onerror="this.src='./assets/brand.svg'" />
+      <div class="brand-title">PAN DE TATA</div>
+    </div>
     <main class="menu">
       <h1>Elige un formulario</h1>
       <p class="muted">Cada botón abre el mismo registro pero apuntando a una pestaña distinta en Google Sheets.</p>
@@ -58,6 +66,7 @@
         </div>
       </section>
     </main>
+    <div class="credit">Elaborado por el pasante de producción <strong>Gerardo Siblesz</strong></div>
     <script src="./assets/forms.js"></script>
     <script>
       const ROLE_KEY = 'app_role';
