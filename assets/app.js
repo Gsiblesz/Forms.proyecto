@@ -6,6 +6,7 @@ let PRODUCT_CATALOG = [
   { id: "P-004", name: "Harina 1Kg" },
   { id: "P-005", name: "Café 500g" },
 ];
+let PRODUCT_GROUPS = null; // [{label, products:[string]}]
 
 const STORAGE_KEY = "productos_registrados";
 const SETTINGS_KEY = "gs_settings"; // { url: string, enabled: boolean, token?: string }
@@ -20,11 +21,27 @@ function productNameFor(id) {
 function createRow(productId = "", quantity = "") {
   const div = document.createElement("div");
   div.className = "row";
-  div.innerHTML = `
-    <select class="product" required>
+  let optionsHtml = '';
+  if (Array.isArray(PRODUCT_GROUPS) && PRODUCT_GROUPS.length) {
+    optionsHtml += `<option value="" disabled ${productId ? '' : 'selected'}>Selecciona un producto…</option>`;
+    for (const g of PRODUCT_GROUPS) {
+      optionsHtml += `<optgroup label="${g.label}">`;
+      for (const name of g.products) {
+        const val = name; // usamos el nombre como id
+        const sel = val === productId ? 'selected' : '';
+        optionsHtml += `<option value="${val}" ${sel}>${name}</option>`;
+      }
+      optionsHtml += `</optgroup>`;
+    }
+  } else {
+    optionsHtml = `
       <option value="" disabled ${productId ? "" : "selected"}>Selecciona un producto…</option>
       ${PRODUCT_CATALOG.map(p => `<option value="${p.id}" ${p.id === productId ? "selected" : ""}>${p.name}</option>`).join("")}
-    </select>
+    `;
+  }
+
+  div.innerHTML = `
+    <select class="product" required>${optionsHtml}</select>
     <input type="number" class="quantity" min="0" step="1" placeholder="0" value="${quantity}" required />
     <button type="button" class="remove-btn" title="Eliminar fila">✕</button>
   `;
@@ -222,6 +239,8 @@ function main() {
     }
     const subEl = document.getElementById("form-subtitle");
     if (subEl) subEl.textContent = `Pestaña en Google Sheets: ${cfg.sheetTab}`;
+  const descEl = document.getElementById("form-desc");
+  if (descEl && cfg.description) descEl.textContent = cfg.description;
     // Link del visor con sheet
     const v = document.getElementById("viewer-link");
     if (v) {
@@ -231,6 +250,65 @@ function main() {
     }
     // Aplicar color suave como banda superior (opcional)
     try { document.documentElement.style.setProperty("--accent", cfg.color); } catch {}
+
+    // Personalización por formulario: LA TATA DE LA LIBERTAD
+    if (cfg.id === 'tata-libertad') {
+      // Construir grupos y catálogo plano para mapear nombres
+      if (Array.isArray(cfg.groups) && cfg.groups.length) {
+        PRODUCT_GROUPS = cfg.groups;
+        const flat = [];
+        const seen = new Set();
+        for (const g of cfg.groups) {
+          for (const name of g.products) {
+            if (!seen.has(name)) { flat.push({ id: name, name }); seen.add(name); }
+          }
+        }
+        PRODUCT_CATALOG = flat;
+      }
+      // Datalist de sedes
+      const sedeList = document.getElementById('sede-list');
+      if (sedeList && Array.isArray(cfg.sedes)) {
+        sedeList.innerHTML = '';
+        cfg.sedes.forEach(s => {
+          const opt = document.createElement('option');
+          opt.value = s; sedeList.appendChild(opt);
+        });
+      }
+      // Cambiar etiqueta de responsable a "Entregado por"
+      const lbl = document.getElementById('label-resp');
+      if (lbl) lbl.textContent = 'Entregado por';
+      // Insertar controles de TIPO y FAMILIA
+      const extra = document.getElementById('form-extra');
+      if (extra) {
+        extra.innerHTML = `
+          <div class="meta" style="margin-bottom:0">
+            <div>
+              <label>Tipo</label>
+              <select id="meta-tipo">
+                <option value="MERMA">MERMA</option>
+                <option value="ENTREGADO">ENTREGADO</option>
+              </select>
+            </div>
+            <div id="familia-wrap" style="display:none">
+              <label>Familia</label>
+              <select id="meta-familia"></select>
+            </div>
+          </div>
+        `;
+        const familiaSel = document.getElementById('meta-familia');
+        if (familiaSel && Array.isArray(cfg.familias)) {
+          familiaSel.innerHTML = cfg.familias.map(f => `<option value="${f}">${f}</option>`).join('');
+        }
+        const tipoSel = document.getElementById('meta-tipo');
+        const familiaWrap = document.getElementById('familia-wrap');
+        const syncTipo = () => {
+          const v = tipoSel.value;
+          familiaWrap.style.display = v === 'ENTREGADO' ? '' : 'none';
+        };
+        tipoSel.addEventListener('change', syncTipo);
+        syncTipo();
+      }
+    }
   }
 
   const rowsEl = document.getElementById("rows");
@@ -305,6 +383,8 @@ function main() {
       formId: cfg?.id || null,
       formName: cfg?.title || null,
       sheet: cfg?.sheetTab || null,
+      tipo: document.getElementById('meta-tipo')?.value || null,
+      familia: document.getElementById('meta-familia')?.value || null,
     };
     const entry = save(items, meta);
     let msg = `Guardado ${new Date(entry.at).toLocaleString()} (${entry.items.length} item/s)`;

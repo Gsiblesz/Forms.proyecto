@@ -17,18 +17,21 @@
         <a class="muted" href="./menu.html">Cambiar formulario</a>
       </div>
       <p class="muted" id="form-subtitle" style="margin-top:-6px"></p>
+      <p class="muted" id="form-desc" style="margin-top:-10px"></p>
       <p class="muted" style="margin-top:-6px">
         <a id="viewer-link" href="./registros.html">Ver registros recientes →</a>
       </p>
 
       <form id="products-form">
+        <div id="form-extra"></div>
         <div class="meta">
           <div>
             <label>Sede</label>
-            <input id="meta-sede" type="text" placeholder="Ej: Campus, Almacén..." />
+            <input id="meta-sede" list="sede-list" type="text" placeholder="Ej: SL, LPG, SC..." />
+            <datalist id="sede-list"></datalist>
           </div>
           <div>
-            <label>Responsable</label>
+            <label id="label-resp">Responsable</label>
             <input id="meta-resp" type="text" placeholder="Nombre y apellido" />
           </div>
           <div>
