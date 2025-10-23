@@ -87,7 +87,9 @@ function validate(items) {
 function save(items, meta) {
   const prev = JSON.parse(localStorage.getItem(STORAGE_KEY) || "[]");
   const now = new Date().toISOString();
-  const entry = { id: crypto.randomUUID(), at: now, items, meta };
+  // ID corto: base36 timestamp + 4 chars aleatorios
+  const shortId = (Date.now().toString(36) + Math.random().toString(36).slice(2,6)).toUpperCase();
+  const entry = { id: shortId, at: now, items, meta };
   const next = [...prev, entry];
   localStorage.setItem(STORAGE_KEY, JSON.stringify(next));
   return entry;
@@ -97,12 +99,8 @@ async function maybeSendToSheets(entry) {
   const settings = JSON.parse(localStorage.getItem(SETTINGS_KEY) || "{}");
   if (!settings.enabled || !settings.url) return { sent: false };
   try {
-    // Incluir product_name por item para que quede en Sheets
-    const itemsWithNames = Array.isArray(entry.items)
-      ? entry.items.map(it => ({ ...it, product_name: productNameFor(it.product) }))
-      : [];
-    const entryToSend = { ...entry, items: itemsWithNames };
-    const payloadObj = settings.token ? { ...entryToSend, token: settings.token } : entryToSend;
+    // Enviar tal cual (items: [{product, quantity}])
+    const payloadObj = settings.token ? { ...entry, token: settings.token } : entry;
     const payload = JSON.stringify(payloadObj);
     // Intento 0: proxy en Vercel para lectura de respuesta y ocultar token del cliente
     const canUseProxy = (() => {
@@ -398,7 +396,7 @@ function main() {
       formName: cfg?.title || null,
       sheet: cfg?.sheetTab || null,
       tipo: document.getElementById('meta-tipo')?.value || null,
-      familia: document.getElementById('meta-familia')?.value || null,
+      familia: (document.getElementById('meta-tipo')?.value === 'MERMA') ? null : (document.getElementById('meta-familia')?.value || null),
     };
     const entry = save(items, meta);
     let msg = `Guardado ${new Date(entry.at).toLocaleString()} (${entry.items.length} item/s)`;
