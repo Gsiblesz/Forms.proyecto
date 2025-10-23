@@ -70,7 +70,16 @@
       const urlOverride = getQuery('url');
       const tokenOverride = getQuery('token');
       const sheet = getQuery('sheet');
-      if (urlOverride) qp.set('url', urlOverride);
+      if (urlOverride) {
+        qp.set('url', urlOverride);
+      } else {
+        // fallback: usa la URL guardada en ajustes locales si existe
+        try {
+          const s = JSON.parse(localStorage.getItem('gs_settings') || '{}');
+          if (s.url) qp.set('url', s.url);
+          if (s.token && !tokenOverride) qp.set('token', s.token);
+        } catch {}
+      }
       if (tokenOverride) qp.set('token', tokenOverride);
       if (sheet) qp.set('sheet', sheet);
       const url = `/api/gs-proxy?${qp.toString()}`;
@@ -120,7 +129,7 @@
         render(rows);
       const usingOverride = !!getQuery('url');
       const hint = usingOverride ? ' (URL por query)' : '';
-      const usedUrl = getQuery('url') || 'env:GS_WEBAPP_URL';
+  const usedUrl = getQuery('url') || (JSON.parse(localStorage.getItem('gs_settings')||'{}').url ? 'local:gs_settings.url' : 'env:GS_WEBAPP_URL');
       const sheet = getQuery('sheet');
       const sheetHint = sheet ? ` — sheet: ${sheet}` : '';
       status.innerHTML = `<span class="pill">OK</span> ${rows.length} fila(s)${hint}${sheetHint} <span class="muted">Origen: ${usedUrl}</span>`;

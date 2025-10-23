@@ -10,7 +10,7 @@ let PRODUCT_GROUPS = null; // [{label, products:[string]}]
 
 const STORAGE_KEY = "productos_registrados";
 const SETTINGS_KEY = "gs_settings"; // { url: string, enabled: boolean, token?: string }
-const DEFAULT_GS_URL = "https://script.google.com/macros/s/AKfycby57_ixnTL9abpzfh_XmHHe4tnkyHlINAkadFzJy3WCtphSEdWAcLqPC9_SwRbfj9xclw/exec";
+const DEFAULT_GS_URL = "https://script.google.com/macros/s/AKfycbylShlKMGbYqzeDaR_5TIbAkvHO1T4zLM-0nlYy4dE0bTZ7knR502nBQJIUmg5ZeFVLzA/exec";
 const DEFAULT_GS_TOKEN = "Pasantias90"; // preconfig por defecto
 const ROLE_KEY = "app_role"; // 'worker' | 'admin'
 
