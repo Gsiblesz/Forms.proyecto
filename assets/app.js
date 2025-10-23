@@ -10,7 +10,7 @@ let PRODUCT_GROUPS = null; // [{label, products:[string]}]
 
 const STORAGE_KEY = "productos_registrados";
 const SETTINGS_KEY = "gs_settings"; // { url: string, enabled: boolean, token?: string }
-const DEFAULT_GS_URL = "https://script.google.com/macros/s/AKfycbylShlKMGbYqzeDaR_5TIbAkvHO1T4zLM-0nlYy4dE0bTZ7knR502nBQJIUmg5ZeFVLzA/exec";
+const DEFAULT_GS_URL = "https://script.google.com/macros/s/AKfycbxFp6Sx5W4egrraAsfAUZcv_y_8R4CW7htUdcpTs18Do3wKAtO9bJaW4FZoZHqqT0IGYA/exec";
 const DEFAULT_GS_TOKEN = "Pasantias90"; // preconfig por defecto
 const ROLE_KEY = "app_role"; // 'worker' | 'admin'
 
@@ -455,6 +455,13 @@ function main() {
         if (gsTokenInput && preset.token) gsTokenInput.value = preset.token;
       }
       if (isAdmin) updateResult("Ajustes de Google Sheets preconfigurados");
+    }
+    // Migración suave: si existe una URL de script.google.com y cambió el deployment, actualiza al nuevo DEFAULT_GS_URL
+    else if (existing.url && /^https:\/\/script\.google\.com\/macros\/s\//.test(existing.url) && DEFAULT_GS_URL && existing.url !== DEFAULT_GS_URL) {
+      const migrated = { ...existing, url: DEFAULT_GS_URL };
+      localStorage.setItem(SETTINGS_KEY, JSON.stringify(migrated));
+      if (isAdmin && gsUrlInput) gsUrlInput.value = migrated.url;
+      if (isAdmin) updateResult("URL de Apps Script actualizada al nuevo deployment");
     }
     if (isAdmin && gsUrlInput && gsEnabledInput) {
       if (existing.url) gsUrlInput.value = existing.url;
