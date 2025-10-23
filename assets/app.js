@@ -222,12 +222,14 @@ function main() {
   const u = new URL(window.location.href);
   const formId = u.searchParams.get("form");
   const formsList = Array.isArray(window.FORMS) ? window.FORMS : [];
+  const DEFAULT_FORM_ID = 'tata-libertad';
   let cfg = null;
   if (typeof window.getFormConfig === 'function') {
     try { cfg = window.getFormConfig(formId); } catch (_) { cfg = null; }
   }
   if (!cfg && formsList.length) {
-    cfg = formsList[0]; // fallback al primer formulario si no hay ?form o no carga getFormConfig
+    // intentar primeramente el id por defecto
+    cfg = formsList.find(f => f.id === DEFAULT_FORM_ID) || formsList[0];
   }
   if (cfg) {
     // Catálogo por formulario (si se definió)
