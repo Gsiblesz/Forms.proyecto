@@ -221,7 +221,14 @@ function main() {
   // Detectar formulario desde query y configurar título/estilos
   const u = new URL(window.location.href);
   const formId = u.searchParams.get("form");
-  const cfg = (window.getFormConfig ? window.getFormConfig(formId) : null) || null;
+  const formsList = Array.isArray(window.FORMS) ? window.FORMS : [];
+  let cfg = null;
+  if (typeof window.getFormConfig === 'function') {
+    try { cfg = window.getFormConfig(formId); } catch (_) { cfg = null; }
+  }
+  if (!cfg && formsList.length) {
+    cfg = formsList[0]; // fallback al primer formulario si no hay ?form o no carga getFormConfig
+  }
   if (cfg) {
     // Catálogo por formulario (si se definió)
     if (Array.isArray(cfg.catalog) && cfg.catalog.length) {
@@ -522,7 +529,7 @@ function main() {
   }
 
   updateResult();
-  try { console.debug("Formulario cargado"); } catch {}
+  try { console.debug("Formulario cargado", { formId, cfg }); } catch {}
 }
 // Inicializar de forma robusta con y sin defer
 if (document.readyState === "loading") {
