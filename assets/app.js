@@ -218,6 +218,11 @@ function main() {
     return;
   }
   const isAdmin = role === 'admin';
+  // Esperar a que forms.js cargue si aún no está disponible
+  if (!Array.isArray(window.FORMS) || window.FORMS.length === 0) {
+    setTimeout(main, 120);
+    return;
+  }
   // Detectar formulario desde query y configurar título/estilos
   const u = new URL(window.location.href);
   const formId = u.searchParams.get("form");
