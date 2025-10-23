@@ -315,7 +315,12 @@ function main() {
         const familiaWrap = document.getElementById('familia-wrap');
         const syncTipo = () => {
           const v = tipoSel.value;
-          familiaWrap.style.display = v === 'ENTREGADO' ? '' : 'none';
+          const showFam = v === 'ENTREGADO';
+          familiaWrap.style.display = showFam ? '' : 'none';
+          if (!showFam && familiaSel) {
+            // limpiar valor de familia cuando no aplica (MERMA u otros)
+            familiaSel.value = '';
+          }
         };
         tipoSel.addEventListener('change', syncTipo);
         syncTipo();
