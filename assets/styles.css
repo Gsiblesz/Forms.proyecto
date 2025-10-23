@@ -33,6 +33,16 @@ body {
 
 h1 { margin: 0 0 16px; font-size: 28px; }
 
+.form-badge {
+  align-self: center;
+  padding: 3px 10px;
+  border-radius: 999px;
+  background: var(--accent);
+  color: #06112a;
+  font-size: 12px;
+  font-weight: 600;
+}
+
 .rows { display: grid; gap: 12px; margin-bottom: 16px; }
 .meta { display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: 12px; margin-bottom: 14px; }
 .meta label { display:block; font-size: 12px; color: var(--muted); margin-bottom: 6px; }

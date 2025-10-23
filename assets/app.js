@@ -214,6 +214,12 @@ function main() {
     const titleEl = document.getElementById("form-title");
     if (titleEl) titleEl.textContent = cfg.title;
     try { document.title = `${cfg.title} — Registro`; } catch {}
+    const badgeEl = document.getElementById("form-badge");
+    if (badgeEl) {
+      badgeEl.textContent = cfg.title;
+      badgeEl.style.display = '';
+      try { badgeEl.style.background = cfg.color; } catch {}
+    }
     const subEl = document.getElementById("form-subtitle");
     if (subEl) subEl.textContent = `Pestaña en Google Sheets: ${cfg.sheetTab}`;
     // Link del visor con sheet
