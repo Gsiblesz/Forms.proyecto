@@ -13,6 +13,10 @@ const DEFAULT_GS_URL = "https://script.google.com/macros/s/AKfycby57_ixnTL9abpzf
 const DEFAULT_GS_TOKEN = "Pasantias90"; // preconfig por defecto
 const ROLE_KEY = "app_role"; // 'worker' | 'admin'
 
+function productNameFor(id) {
+  return PRODUCT_CATALOG.find(p => p.id === id)?.name ?? "";
+}
+
 function createRow(productId = "", quantity = "") {
   const div = document.createElement("div");
   div.className = "row";
@@ -76,7 +80,12 @@ async function maybeSendToSheets(entry) {
   const settings = JSON.parse(localStorage.getItem(SETTINGS_KEY) || "{}");
   if (!settings.enabled || !settings.url) return { sent: false };
   try {
-    const payloadObj = settings.token ? { ...entry, token: settings.token } : entry;
+    // Incluir product_name por item para que quede en Sheets
+    const itemsWithNames = Array.isArray(entry.items)
+      ? entry.items.map(it => ({ ...it, product_name: productNameFor(it.product) }))
+      : [];
+    const entryToSend = { ...entry, items: itemsWithNames };
+    const payloadObj = settings.token ? { ...entryToSend, token: settings.token } : entryToSend;
     const payload = JSON.stringify(payloadObj);
     // Intento 0: proxy en Vercel para lectura de respuesta y ocultar token del cliente
     const canUseProxy = (() => {
@@ -228,6 +237,7 @@ function main() {
   const saveSettingsBtn = document.getElementById("save-settings");
   const testSettingsBtn = document.getElementById("test-settings");
   const setTodayBtn = document.getElementById("set-today");
+  const setYesterdayBtn = document.getElementById("set-yesterday");
   const resetSettingsBtn = document.getElementById("reset-settings");
   const hasSettingsUI = !!document.querySelector('.settings');
 
@@ -249,6 +259,28 @@ function main() {
       const dateInput = document.getElementById("meta-date");
       if (dateInput) dateInput.value = iso;
     });
+  }
+  if (setYesterdayBtn) {
+    setYesterdayBtn.addEventListener("click", () => {
+      const d = new Date();
+      d.setDate(d.getDate() - 1);
+      const yyyy = d.getFullYear();
+      const mm = String(d.getMonth() + 1).padStart(2, "0");
+      const dd = String(d.getDate()).padStart(2, "0");
+      const iso = `${yyyy}-${mm}-${dd}`;
+      const dateInput = document.getElementById("meta-date");
+      if (dateInput) dateInput.value = iso;
+    });
+  }
+
+  // Prefijar la fecha de hoy si está vacía
+  const dateInputInit = document.getElementById("meta-date");
+  if (dateInputInit && !dateInputInit.value) {
+    const d = new Date();
+    const yyyy = d.getFullYear();
+    const mm = String(d.getMonth() + 1).padStart(2, "0");
+    const dd = String(d.getDate()).padStart(2, "0");
+    dateInputInit.value = `${yyyy}-${mm}-${dd}`;
   }
 
   form.addEventListener("submit", async (e) => {
