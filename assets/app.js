@@ -213,6 +213,7 @@ function main() {
     // Título y subtítulo
     const titleEl = document.getElementById("form-title");
     if (titleEl) titleEl.textContent = cfg.title;
+    try { document.title = `${cfg.title} — Registro`; } catch {}
     const subEl = document.getElementById("form-subtitle");
     if (subEl) subEl.textContent = `Pestaña en Google Sheets: ${cfg.sheetTab}`;
     // Link del visor con sheet

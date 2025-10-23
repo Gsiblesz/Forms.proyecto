@@ -49,9 +49,7 @@
             <th>sede</th>
             <th>responsable</th>
             <th>fecha</th>
-            <th>formId</th>
-            <th>formName</th>
-            <th>sheet</th>
+            <th>form</th>
           </tr>
         </thead>
         <tbody></tbody>
@@ -87,7 +85,7 @@
       const tb = document.querySelector('#tbl tbody');
       tb.innerHTML = '';
       for (const r of rows) {
-        // soportar objetos o arrays [id, ts, product, product_name, qty, sede, responsable, fecha, formId, formName, sheet]
+        // soportar objetos o arrays [id, ts, product, product_name, qty, sede, responsable, fecha, form]
         const arr = Array.isArray(r)
           ? r
           : [
@@ -99,12 +97,10 @@
               r.sede,
               r.responsable,
               r.fecha,
-              r.formId,
-              r.formName,
-              r.sheet,
+              r.form,
             ];
         const tr = document.createElement('tr');
-        arr.slice(0,11).forEach(v => {
+        arr.slice(0,10).forEach(v => {
           const td = document.createElement('td');
           td.textContent = v == null ? '' : String(v);
           tr.appendChild(td);
