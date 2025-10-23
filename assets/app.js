@@ -331,6 +331,7 @@ function main() {
   const rowsEl = document.getElementById("rows");
   const addBtn = document.getElementById("add-row");
   const form = document.getElementById("products-form");
+  const submitBtn = form ? form.querySelector('button[type="submit"]') : null;
   const exportBtn = document.getElementById("export-csv");
   const clearBtn = document.getElementById("clear-storage");
   const gsUrlInput = document.getElementById("gs-url");
@@ -385,6 +386,7 @@ function main() {
     dateInputInit.value = `${yyyy}-${mm}-${dd}`;
   }
 
+  let isSubmitting = false;
   form.addEventListener("submit", async (e) => {
     e.preventDefault();
     const items = readForm();
@@ -392,6 +394,15 @@ function main() {
     if (!v.ok) {
       updateResult(`<span style="color:#ffb3b3">${v.errors.join("<br>")}</span>`);
       return;
+    }
+    if (isSubmitting) return; // evita doble envío por doble click
+    isSubmitting = true;
+    // deshabilitar botón mientras envía
+    let btnOldText = null;
+    if (submitBtn) {
+      btnOldText = submitBtn.textContent;
+      submitBtn.textContent = 'Enviando…';
+      submitBtn.disabled = true;
     }
     const meta = {
       sede: document.getElementById("meta-sede").value.trim() || null,
@@ -403,26 +414,34 @@ function main() {
       tipo: document.getElementById('meta-tipo')?.value || null,
       familia: (document.getElementById('meta-tipo')?.value === 'MERMA') ? null : (document.getElementById('meta-familia')?.value || null),
     };
-    const entry = save(items, meta);
-    let msg = `Guardado ${new Date(entry.at).toLocaleString()} (${entry.items.length} item/s)`;
-    const send = await maybeSendToSheets(entry);
-    if (send.sent) {
-      if (send.via === "proxy") {
-        msg += " — enviado a Google Sheets (con lectura vía proxy)";
-      } else {
-        msg += send.data?.mode === "no-cors" ? " — enviado a Google Sheets (sin lectura)" : " — enviado a Google Sheets";
+    try {
+      const entry = save(items, meta);
+      let msg = `Guardado ${new Date(entry.at).toLocaleString()} (${entry.items.length} item/s)`;
+      const send = await maybeSendToSheets(entry);
+      if (send.sent) {
+        if (send.via === "proxy") {
+          msg += " — enviado a Google Sheets (con lectura vía proxy)";
+        } else {
+          msg += send.data?.mode === "no-cors" ? " — enviado a Google Sheets (sin lectura)" : " — enviado a Google Sheets";
+        }
+      } else if (send.error) {
+        msg += ` — no se pudo enviar a Sheets (${send.error})`;
       }
-    } else if (send.error) {
-      msg += ` — no se pudo enviar a Sheets (${send.error})`;
+      updateResult(`<span style="color:#79ffa7">${msg}</span>`);
+      // Reset: dejar una sola fila vacía
+      rowsEl.innerHTML = "";
+      rowsEl.appendChild(createRow());
+      // limpiar metadata opcionalmente
+      document.getElementById("meta-sede").value = "";
+      document.getElementById("meta-resp").value = "";
+      document.getElementById("meta-date").value = "";
+    } finally {
+      isSubmitting = false;
+      if (submitBtn) {
+        submitBtn.disabled = false;
+        if (btnOldText != null) submitBtn.textContent = btnOldText;
+      }
     }
-    updateResult(`<span style="color:#79ffa7">${msg}</span>`);
-    // Reset: dejar una sola fila vacía
-    rowsEl.innerHTML = "";
-    rowsEl.appendChild(createRow());
-    // limpiar metadata opcionalmente
-    document.getElementById("meta-sede").value = "";
-    document.getElementById("meta-resp").value = "";
-    document.getElementById("meta-date").value = "";
   });
 
   if (exportBtn) exportBtn.addEventListener("click", () => {
