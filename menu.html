@@ -50,6 +50,8 @@
           <input id="gs-url" type="url" placeholder="https://script.google.com/macros/s/.../exec" style="width:100%;padding:10px;border-radius:10px;border:1px solid var(--border);background:#0f1533;color:var(--text)" />
           <label>Token secreto</label>
           <input id="gs-token" type="text" placeholder="Pasantias90" style="width:100%;padding:10px;border-radius:10px;border:1px solid var(--border);background:#0f1533;color:var(--text)" />
+          <label>Pestaña (sheet) para prueba</label>
+          <select id="gs-sheet" style="width:100%;padding:10px;border-radius:10px;border:1px solid var(--border);background:#0f1533;color:var(--text)"></select>
           <label style="display:flex;gap:8px;align-items:center;margin-top:8px">
             <input id="gs-enabled" type="checkbox" /> Enviar a Google Sheets al guardar
           </label>
@@ -137,10 +139,23 @@
       const gsUrlInput = document.getElementById('gs-url');
       const gsTokenInput = document.getElementById('gs-token');
       const gsEnabledInput = document.getElementById('gs-enabled');
+      const gsSheetSelect = document.getElementById('gs-sheet');
       const existing = JSON.parse(localStorage.getItem(SETTINGS_KEY) || '{}');
       if (existing.url) gsUrlInput.value = existing.url;
       if (typeof existing.enabled === 'boolean') gsEnabledInput.checked = existing.enabled;
       if (existing.token) gsTokenInput.value = existing.token;
+
+      // Poblar selector de sheet desde FORMS
+      if (Array.isArray(window.FORMS) && window.FORMS.length && gsSheetSelect) {
+        gsSheetSelect.innerHTML = '';
+        window.FORMS.forEach((f, idx) => {
+          const opt = document.createElement('option');
+          opt.value = f.sheetTab;
+          opt.textContent = `${f.title} — ${f.sheetTab}`;
+          if (idx === 0) opt.selected = true;
+          gsSheetSelect.appendChild(opt);
+        });
+      }
 
       document.getElementById('save-settings').addEventListener('click', ()=>{
         const settings = {
@@ -156,11 +171,19 @@
         const url = gsUrlInput.value.trim();
         if (!url) { adminResult.textContent = 'Primero ingresa la URL'; return; }
         const token = gsTokenInput.value.trim();
-        const probe = { id: 'test-'+Math.random().toString(36).slice(2,6), at: new Date().toISOString(), items:[{product:'PING',quantity:1}], ...(token?{token}:{}) };
+        const sheet = gsSheetSelect && gsSheetSelect.value ? gsSheetSelect.value : (window.FORMS && window.FORMS[0] && window.FORMS[0].sheetTab) || '';
+        const form = (window.FORMS || []).find(f => f.sheetTab === sheet) || null;
+        const probe = {
+          id: 'test-'+Math.random().toString(36).slice(2,6),
+          at: new Date().toISOString(),
+          items:[{product:'PING',quantity:1}],
+          meta: { sheet, formId: form?.id || '', formName: form?.title || '' },
+          ...(token?{token}:{})
+        };
         try {
           const res = await fetch('/api/gs-submit', { method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({ url, entry: probe }) });
           const json = await res.json().catch(()=>({}));
-          adminResult.textContent = `HTTP ${res.status} — ${JSON.stringify(json).substring(0,200)}...`;
+          adminResult.textContent = `HTTP ${res.status} — ${JSON.stringify(json).substring(0,200)}... (sheet: ${sheet})`;
         } catch (err) {
           adminResult.textContent = String(err);
         }
