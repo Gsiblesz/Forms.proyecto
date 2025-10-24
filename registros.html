@@ -40,19 +40,7 @@
     <div style="overflow:auto; max-height:70vh; border:1px solid #222; border-radius:8px;">
       <table id="tbl">
         <thead>
-          <tr>
-            <th>entry_id</th>
-            <th>timestamp</th>
-            <th>fecha</th>
-            <th>code</th>
-            <th>product</th>
-            <th>quantity</th>
-            <th>sede</th>
-            <th>tipo</th>
-            <th>familia</th>
-            <th>responsable</th>
-            <th>form</th>
-          </tr>
+          <tr id="thead-row"></tr>
         </thead>
         <tbody></tbody>
       </table>
@@ -88,32 +76,33 @@
       if (!res.ok) throw new Error(`HTTP ${res.status}`);
       const data = await res.json();
       if (!data || data.ok === false) throw new Error(data?.error || 'Error remoto');
-      // data.rows esperado: array de objetos o array de arrays
-      return data.rows || data.data || [];
+      // data.head: arreglo de nombres de columnas (si el backend lo provee)
+      // data.rows: array de objetos o array de arrays
+      return { head: data.head || null, rows: (data.rows || data.data || []) };
     }
 
-    function render(rows) {
+    function renderPayload(payload) {
+      const HEAD_FALLBACK = ["entry_id","timestamp","fecha","code","product","quantity","sede","tipo","familia","responsable","form"]; // por defecto
+      const head = Array.isArray(payload.head) && payload.head.length ? payload.head : HEAD_FALLBACK;
+      const rows = Array.isArray(payload.rows) ? payload.rows : [];
+
+      // construir encabezado
+      const theadRow = document.getElementById('thead-row');
+      theadRow.innerHTML = '';
+      head.forEach(h => {
+        const th = document.createElement('th');
+        th.textContent = h;
+        theadRow.appendChild(th);
+      });
+
       const tb = document.querySelector('#tbl tbody');
       tb.innerHTML = '';
       for (const r of rows) {
-        // soportar objetos o arrays en orden: entry_id, timestamp, fecha, code, product, quantity, sede, tipo, familia, responsable, form
-        const arr = Array.isArray(r)
-          ? r
-          : [
-              r.entry_id,
-              r.timestamp,
-              r.fecha,
-              r.code,
-              r.product,
-              r.quantity,
-              r.sede,
-              r.tipo,
-              r.familia,
-              r.responsable,
-              r.form,
-            ];
+        // Si es objeto y tenemos head, pintamos en el orden de head; si es array, lo usamos directo
+        const arr = Array.isArray(r) ? r : head.map(h => r[h]);
         const tr = document.createElement('tr');
-        arr.slice(0,11).forEach(v => {
+        // número de columnas según head
+        arr.slice(0, head.length).forEach(v => {
           const td = document.createElement('td');
           td.textContent = v == null ? '' : String(v);
           tr.appendChild(td);
@@ -127,14 +116,15 @@
       const status = document.getElementById('status');
       try {
         status.textContent = 'Cargando…';
-      const rows = await fetchEntries(Number(limitSel.value));
-        render(rows);
+      const payload = await fetchEntries(Number(limitSel.value));
+        renderPayload(payload);
       const usingOverride = !!getQuery('url');
       const hint = usingOverride ? ' (URL por query)' : '';
   const usedUrl = getQuery('url') || (JSON.parse(localStorage.getItem('gs_settings')||'{}').url ? 'local:gs_settings.url' : 'env:GS_WEBAPP_URL');
       const sheet = getQuery('sheet');
       const sheetHint = sheet ? ` — sheet: ${sheet}` : '';
-      status.innerHTML = `<span class="pill">OK</span> ${rows.length} fila(s)${hint}${sheetHint} <span class="muted">Origen: ${usedUrl}</span>`;
+      const n = Array.isArray(payload.rows) ? payload.rows.length : 0;
+      status.innerHTML = `<span class="pill">OK</span> ${n} fila(s)${hint}${sheetHint} <span class="muted">Origen: ${usedUrl}</span>`;
       } catch (err) {
         console.error(err);
         status.innerHTML = `<span class="pill error">Error</span> ${String(err)}`;
