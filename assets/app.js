@@ -7,6 +7,7 @@ let PRODUCT_CATALOG = [
   { id: "P-005", name: "Café 500g" },
 ];
 let PRODUCT_GROUPS = null; // [{label, products:[string]}]
+let CODE_MAP = {}; // opcional por formulario: { nombreProducto: codigo }
 
 const STORAGE_KEY = "productos_registrados";
 const SETTINGS_KEY = "gs_settings"; // { url: string, enabled: boolean, token?: string }
@@ -16,6 +17,16 @@ const ROLE_KEY = "app_role"; // 'worker' | 'admin'
 
 function productNameFor(id) {
   return PRODUCT_CATALOG.find(p => p.id === id)?.name ?? "";
+}
+
+function codeForProduct(name) {
+  if (name && CODE_MAP && Object.prototype.hasOwnProperty.call(CODE_MAP, name)) {
+    return CODE_MAP[name];
+  }
+  // si el catálogo usa {id: codigo, name: nombre}
+  const p = PRODUCT_CATALOG.find(p => p.name === name);
+  if (p && p.id && /^([A-Z]{2,}|ST|PT)/.test(p.id)) return p.id;
+  return "";
 }
 
 function createRow(productId = "", quantity = "") {
@@ -168,16 +179,20 @@ function updateResult(message = null, type = "info") {
 }
 
 function toCSV(entries) {
-  const header = ["entry_id", "timestamp", "product_id", "product_name", "quantity", "sede", "responsable", "fecha"];
+  const header = ["entry_id", "timestamp", "code", "product", "quantity", "sede", "responsable", "fecha"];
   const lines = [header.join(",")];
-  const mapName = (id) => PRODUCT_CATALOG.find(p => p.id === id)?.name ?? "";
+  const mapName = (val) => {
+    // si ya viene el nombre en el item, úsalo; si no, busca por id
+    const found = PRODUCT_CATALOG.find(p => p.id === val || p.name === val);
+    return found?.name || String(val);
+  };
 
   for (const e of entries) {
     for (const it of e.items) {
       const row = [
         e.id,
         e.at,
-        it.product,
+        it.code ?? "",
         mapName(it.product),
         String(it.quantity),
         e.meta?.sede ?? "",
@@ -239,6 +254,12 @@ function main() {
     if (Array.isArray(cfg.catalog) && cfg.catalog.length) {
       PRODUCT_CATALOG = cfg.catalog;
     }
+    // Mapa de códigos opcional
+    if (cfg.codeMap && typeof cfg.codeMap === 'object') {
+      CODE_MAP = cfg.codeMap;
+    } else {
+      CODE_MAP = {};
+    }
     // Título y subtítulo
     const titleEl = document.getElementById("form-title");
     if (titleEl) titleEl.textContent = cfg.title;
@@ -272,7 +293,9 @@ function main() {
         const seen = new Set();
         for (const g of cfg.groups) {
           for (const name of g.products) {
-            if (!seen.has(name)) { flat.push({ id: name, name }); seen.add(name); }
+            // si se definió un codeMap, usarlo como id
+            const code = (cfg.codeMap && cfg.codeMap[name]) ? cfg.codeMap[name] : name;
+            if (!seen.has(name)) { flat.push({ id: code, name }); seen.add(name); }
           }
         }
         PRODUCT_CATALOG = flat;
@@ -431,7 +454,9 @@ function main() {
       familia: (document.getElementById('meta-tipo')?.value === 'MERMA') ? null : (document.getElementById('meta-familia')?.value || null),
     };
     try {
-      const entry = save(items, meta);
+      // enriquecer con código de producto
+      const itemsWithCode = items.map(it => ({ ...it, code: codeForProduct(it.product) }));
+      const entry = save(itemsWithCode, meta);
       let msg = `Guardado ${new Date(entry.at).toLocaleString()} (${entry.items.length} item/s)`;
       const send = await maybeSendToSheets(entry);
       if (send.sent) {
