@@ -8,6 +8,7 @@ let PRODUCT_CATALOG = [
 ];
 let PRODUCT_GROUPS = null; // [{label, products:[string]}]
 let CODE_MAP = {}; // opcional por formulario: { nombreProducto: codigo }
+let UND_MAP = {};  // opcional por formulario: { nombreProducto: 'UND'|'PAQ'|'CAJ'|'KG' }
 
 const STORAGE_KEY = "productos_registrados";
 const SETTINGS_KEY = "gs_settings"; // { url: string, enabled: boolean, token?: string }
@@ -27,6 +28,18 @@ function codeForProduct(name) {
   const p = PRODUCT_CATALOG.find(p => p.name === name);
   if (p && p.id && /^([A-Z]{2,}|ST|PT)/.test(p.id)) return p.id;
   return "";
+}
+
+function undForProduct(name) {
+  if (name && UND_MAP && Object.prototype.hasOwnProperty.call(UND_MAP, name)) {
+    return UND_MAP[name];
+  }
+  // heurística mínima de respaldo
+  const p = String(name || '').toUpperCase();
+  if (p.includes('CAJA')) return 'CAJ';
+  if (p.includes('TEQUEÑOS')) return 'PAQ';
+  if (p.includes('1 K') || p.endsWith(' 1 K') || p.includes(' 1K')) return 'KG';
+  return 'UND';
 }
 
 function createRow(productId = "", quantity = "") {
@@ -260,6 +273,11 @@ function main() {
     } else {
       CODE_MAP = {};
     }
+    if (cfg.undMap && typeof cfg.undMap === 'object') {
+      UND_MAP = cfg.undMap;
+    } else {
+      UND_MAP = {};
+    }
     // Título y subtítulo
     const titleEl = document.getElementById("form-title");
     if (titleEl) titleEl.textContent = cfg.title;
@@ -454,8 +472,8 @@ function main() {
       familia: (document.getElementById('meta-tipo')?.value === 'MERMA') ? null : (document.getElementById('meta-familia')?.value || null),
     };
     try {
-      // enriquecer con código de producto
-      const itemsWithCode = items.map(it => ({ ...it, code: codeForProduct(it.product) }));
+      // enriquecer con código y unidad por producto
+      const itemsWithCode = items.map(it => ({ ...it, code: codeForProduct(it.product), und: undForProduct(it.product) }));
       const entry = save(itemsWithCode, meta);
       let msg = `Guardado ${new Date(entry.at).toLocaleString()} (${entry.items.length} item/s)`;
       const send = await maybeSendToSheets(entry);
