@@ -145,7 +145,18 @@ window.FORMS = [
     title: "CONGELADOS HOJALDRE",
     sheetTab: "CONGELADOS HOJALDRE",
     color: "#c9eef7", // celeste
-    catalog: []
+    description: "Formulario de Operaciones de Manufactura.\n\nEntrega de producto terminado a tienda.",
+    sedes: ["SL","LPG","SC","SCH","PB-2","E PB-2","LG","VM","BC"],
+    catalog: [
+      { id: "TEQUEÑOS (15 UND)", name: "TEQUEÑOS (15 UND)" },
+      { id: "TEQUEÑOS (30 UND)", name: "TEQUEÑOS (30 UND)" },
+      { id: "CROISSANT SIMPLE 120 GR 1 UND ST", name: "CROISSANT SIMPLE 120 GR 1 UND ST" },
+      { id: "CROISSANT CHOCO LECHE 160 GR 1 UND ST", name: "CROISSANT CHOCO LECHE 160 GR 1 UND ST" },
+      { id: "CROISSANT CHOCO OSCURO 160 GR 1 UND ST", name: "CROISSANT CHOCO OSCURO 160 GR 1 UND ST" },
+      { id: "HOJALDRE DE MANZANA 160 GR 1 UND ST", name: "HOJALDRE DE MANZANA 160 GR 1 UND ST" },
+      { id: "MINI CROISSANT 1 UND ST", name: "MINI CROISSANT 1 UND ST" },
+      { id: "CRUFFIN PLAIN ST 1 UND", name: "CRUFFIN PLAIN ST 1 UND" }
+    ]
   },
   {
     id: "inventario-pt",

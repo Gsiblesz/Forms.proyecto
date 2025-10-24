@@ -10,7 +10,7 @@ let PRODUCT_GROUPS = null; // [{label, products:[string]}]
 
 const STORAGE_KEY = "productos_registrados";
 const SETTINGS_KEY = "gs_settings"; // { url: string, enabled: boolean, token?: string }
-const DEFAULT_GS_URL = "https://script.google.com/macros/s/AKfycbxFp6Sx5W4egrraAsfAUZcv_y_8R4CW7htUdcpTs18Do3wKAtO9bJaW4FZoZHqqT0IGYA/exec";
+const DEFAULT_GS_URL = "https://script.google.com/macros/s/AKfycbwoKTui-UAFkI1FL1JtF5uXoSBCpixc4usS1DkPEWmA6JRBYi2XWlMtoo_8J08A9mpfrg/exec";
 const DEFAULT_GS_TOKEN = "Pasantias90"; // preconfig por defecto
 const ROLE_KEY = "app_role"; // 'worker' | 'admin'
 
@@ -263,7 +263,7 @@ function main() {
     // Aplicar color suave como banda superior (opcional)
     try { document.documentElement.style.setProperty("--accent", cfg.color); } catch {}
 
-    // Personalización por formulario: LA TATA DE LA LIBERTAD
+  // Personalización por formulario: LA TATA DE LA LIBERTAD
     if (cfg.id === 'tata-libertad') {
       // Construir grupos y catálogo plano para mapear nombres
       if (Array.isArray(cfg.groups) && cfg.groups.length) {
@@ -325,6 +325,22 @@ function main() {
         tipoSel.addEventListener('change', syncTipo);
         syncTipo();
       }
+    }
+    // Personalización por formulario: CONGELADOS HOJALDRE (simple)
+    if (cfg.id === 'congelados-hojaldre') {
+      // poblar sedes si están definidas
+      const sedeList = document.getElementById('sede-list');
+      if (sedeList && Array.isArray(cfg.sedes)) {
+        sedeList.innerHTML = '';
+        cfg.sedes.forEach(s => {
+          const opt = document.createElement('option');
+          opt.value = s; sedeList.appendChild(opt);
+        });
+      }
+      // etiqueta de responsable
+      const lbl = document.getElementById('label-resp');
+      if (lbl) lbl.textContent = 'Entregado por';
+      // Este formulario no tiene TIPO/FAMILIA, así que no añadimos controles extra.
     }
   }
 
