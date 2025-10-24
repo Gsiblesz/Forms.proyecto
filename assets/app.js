@@ -10,6 +10,11 @@ let PRODUCT_GROUPS = null; // [{label, products:[string]}]
 let CODE_MAP = {}; // opcional por formulario: { nombreProducto: codigo }
 let UND_MAP = {};  // opcional por formulario: { nombreProducto: 'UND'|'PAQ'|'CAJ'|'KG' }
 
+// Anti-duplicado en cliente: ventana de deduplicación e intervalo de "enfriamiento"
+const LAST_SUBMIT_KEY = "last_submit_signature"; // { hash: string, at: number }
+const DUPLICATE_WINDOW_MS = 20_000; // bloquear reenvíos idénticos dentro de 20s
+const SUBMIT_COOLDOWN_MS = 4_000;  // mantener botón deshabilitado X segundos tras envío
+
 const STORAGE_KEY = "productos_registrados";
 const SETTINGS_KEY = "gs_settings"; // { url: string, enabled: boolean, token?: string }
 const DEFAULT_GS_URL = "https://script.google.com/macros/s/AKfycbxNbCrCfD6TktQtOfQ-KHg0pvKt4JfUsUaTrTMYX8j65xzFKojqJS5sKZZMIo35LxU4FA/exec";
@@ -40,6 +45,32 @@ function undForProduct(name) {
   if (p.includes('TEQUEÑOS')) return 'PAQ';
   if (p.includes('1 K') || p.endsWith(' 1 K') || p.includes(' 1K')) return 'KG';
   return 'UND';
+}
+
+// Stringify estable (ordena claves) para firmar el contenido a enviar
+function stableStringify(obj) {
+  if (obj && typeof obj === 'object') {
+    if (Array.isArray(obj)) return `[${obj.map(stableStringify).join(',')}]`;
+    const keys = Object.keys(obj).sort();
+    return `{${keys.map(k => JSON.stringify(k) + ':' + stableStringify(obj[k])).join(',')}}`;
+  }
+  return JSON.stringify(obj);
+}
+
+function buildSubmitSignature(items, meta) {
+  const normItems = [...items]
+    .map(it => ({ p: String(it.product || ''), q: Number(it.quantity || 0) }))
+    .sort((a, b) => a.p.localeCompare(b.p) || a.q - b.q);
+  const m = {
+    sede: meta?.sede || '',
+    responsable: meta?.responsable || '',
+    fecha: meta?.fecha || '',
+    sheet: meta?.sheet || '',
+    formId: meta?.formId || '',
+    tipo: meta?.tipo || '',
+    familia: meta?.familia || ''
+  };
+  return stableStringify({ items: normItems, meta: m });
 }
 
 function createRow(productId = "", quantity = "") {
@@ -452,16 +483,8 @@ function main() {
       updateResult(`<span style="color:#ffb3b3">${v.errors.join("<br>")}</span>`);
       return;
     }
-    if (isSubmitting) return; // evita doble envío por doble click
-    isSubmitting = true;
-    // deshabilitar botón mientras envía
-    let btnOldText = null;
-    if (submitBtn) {
-      btnOldText = submitBtn.textContent;
-      submitBtn.textContent = 'Enviando…';
-      submitBtn.disabled = true;
-    }
-    const meta = {
+    // Construir metadata mínima para firma y detección de duplicados
+    const metaProbe = {
       sede: document.getElementById("meta-sede").value.trim() || null,
       responsable: document.getElementById("meta-resp").value.trim() || null,
       fecha: document.getElementById("meta-date").value || null,
@@ -471,13 +494,35 @@ function main() {
       tipo: document.getElementById('meta-tipo')?.value || null,
       familia: (document.getElementById('meta-tipo')?.value === 'MERMA') ? null : (document.getElementById('meta-familia')?.value || null),
     };
+    const signature = buildSubmitSignature(items, metaProbe);
+    const lastSig = JSON.parse(localStorage.getItem(LAST_SUBMIT_KEY) || "null");
+    const nowMs = Date.now();
+    if (lastSig && lastSig.hash === signature && (nowMs - lastSig.at) < DUPLICATE_WINDOW_MS) {
+      const waitSec = Math.ceil((DUPLICATE_WINDOW_MS - (nowMs - lastSig.at)) / 1000);
+      updateResult(`<span style="color:#ffb3b3">Este envío es idéntico a uno reciente. Espera ${waitSec}s para evitar duplicados.</span>`);
+      return;
+    }
+    if (isSubmitting) return; // evita doble envío por doble click
+    isSubmitting = true;
+    // deshabilitar botón mientras envía
+    let btnOldText = null;
+    if (submitBtn) {
+      btnOldText = submitBtn.textContent;
+      submitBtn.textContent = 'Enviando…';
+      submitBtn.disabled = true;
+    }
+    const meta = metaProbe;
+    let sendResult = null;
     try {
       // enriquecer con código y unidad por producto
       const itemsWithCode = items.map(it => ({ ...it, code: codeForProduct(it.product), und: undForProduct(it.product) }));
       const entry = save(itemsWithCode, meta);
       let msg = `Guardado ${new Date(entry.at).toLocaleString()} (${entry.items.length} item/s)`;
       const send = await maybeSendToSheets(entry);
+      sendResult = send;
       if (send.sent) {
+        // Registrar firma para bloquear reintentos idénticos por unos segundos
+        localStorage.setItem(LAST_SUBMIT_KEY, JSON.stringify({ hash: signature, at: Date.now() }));
         if (send.via === "proxy") {
           msg += " — enviado a Google Sheets (con lectura vía proxy)";
         } else {
@@ -497,8 +542,16 @@ function main() {
     } finally {
       isSubmitting = false;
       if (submitBtn) {
-        submitBtn.disabled = false;
-        if (btnOldText != null) submitBtn.textContent = btnOldText;
+        const reenable = () => {
+          submitBtn.disabled = false;
+          if (btnOldText != null) submitBtn.textContent = btnOldText;
+        };
+        // Mantener un pequeño cooldown si se envió correctamente
+        if (sendResult && sendResult.sent) {
+          setTimeout(reenable, SUBMIT_COOLDOWN_MS);
+        } else {
+          reenable();
+        }
       }
     }
   });
