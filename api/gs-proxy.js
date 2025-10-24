@@ -26,6 +26,8 @@ export default async function handler(req, res) {
 
   const limit = Math.max(1, Math.min(500, Number(req.query.limit || 100)));
   const sheet = typeof req.query.sheet === 'string' ? req.query.sheet : '';
+  const ssid = typeof req.query.ssid === 'string' ? req.query.ssid : '';
+  const ssurl = typeof req.query.ssurl === 'string' ? req.query.ssurl : '';
 
     // Build Apps Script doGet URL: append ?op=list&limit=...&token=...
   const target = new URL(base);
@@ -33,6 +35,8 @@ export default async function handler(req, res) {
     target.searchParams.set("limit", String(limit));
     if (token) target.searchParams.set("token", token);
     if (sheet) target.searchParams.set("sheet", sheet);
+    if (ssid) target.searchParams.set("ssid", ssid);
+    if (ssurl) target.searchParams.set("ssurl", ssurl);
 
     const gsRes = await fetch(target.toString(), { method: "GET" });
     const text = await gsRes.text();

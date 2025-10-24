@@ -59,6 +59,8 @@
       const urlOverride = getQuery('url');
       const tokenOverride = getQuery('token');
       const sheet = getQuery('sheet');
+      const ssid = getQuery('ssid');
+      const ssurl = getQuery('ssurl');
       if (urlOverride) {
         qp.set('url', urlOverride);
       } else {
@@ -71,6 +73,8 @@
       }
       if (tokenOverride) qp.set('token', tokenOverride);
       if (sheet) qp.set('sheet', sheet);
+      if (ssid) qp.set('ssid', ssid);
+      if (ssurl) qp.set('ssurl', ssurl);
       const url = `/api/gs-proxy?${qp.toString()}`;
       const res = await fetch(url);
       if (!res.ok) throw new Error(`HTTP ${res.status}`);
@@ -123,8 +127,10 @@
   const usedUrl = getQuery('url') || (JSON.parse(localStorage.getItem('gs_settings')||'{}').url ? 'local:gs_settings.url' : 'env:GS_WEBAPP_URL');
       const sheet = getQuery('sheet');
       const sheetHint = sheet ? ` — sheet: ${sheet}` : '';
+      const ssid = getQuery('ssid');
+      const fileHint = ssid ? ` — ssid: ${ssid}` : '';
       const n = Array.isArray(payload.rows) ? payload.rows.length : 0;
-      status.innerHTML = `<span class="pill">OK</span> ${n} fila(s)${hint}${sheetHint} <span class="muted">Origen: ${usedUrl}</span>`;
+      status.innerHTML = `<span class="pill">OK</span> ${n} fila(s)${hint}${sheetHint}${fileHint} <span class="muted">Origen: ${usedUrl}</span>`;
       } catch (err) {
         console.error(err);
         status.innerHTML = `<span class="pill error">Error</span> ${String(err)}`;
