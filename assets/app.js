@@ -17,7 +17,7 @@ const SUBMIT_COOLDOWN_MS = 4_000;  // mantener botón deshabilitado X segundos t
 
 const STORAGE_KEY = "productos_registrados";
 const SETTINGS_KEY = "gs_settings"; // { url: string, enabled: boolean, token?: string }
-const DEFAULT_GS_URL = "https://script.google.com/macros/s/AKfycbyNkjTjZVNirhK4xOpO47hDTlQt_l49TtP6lSqn2NwOl9hk1hfZl40m9p23LzxmDXYtJA/exec";
+const DEFAULT_GS_URL = "https://script.google.com/macros/s/AKfycbwNWtYDcatCvoDblw3BYGq0NVCZnRIy5AC87V489TjxKjW7XdpGcb8BC42UzuNr3ZkAcQ/exec";
 const DEFAULT_GS_TOKEN = "Pasantias90"; // preconfig por defecto
 const ROLE_KEY = "app_role"; // 'worker' | 'admin'
 
