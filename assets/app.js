@@ -415,6 +415,110 @@ function main() {
       // Este formulario no tiene TIPO/FAMILIA, así que no añadimos controles extra.
     }
   }
+  // Personalización por formulario: INVENTARIO PRODUCTO TERMINADO
+  if (cfg.id === 'inventario-pt') {
+    // poblar sedes si están definidas (nombres completos)
+    const sedeList = document.getElementById('sede-list');
+    if (sedeList && Array.isArray(cfg.sedes)) {
+      sedeList.innerHTML = '';
+      cfg.sedes.forEach(s => { const opt = document.createElement('option'); opt.value = s; sedeList.appendChild(opt); });
+    }
+    // Controles extra: Tipo de carga y Empresa (usa los ids genéricos meta-tipo/meta-familia)
+    const extra = document.getElementById('form-extra');
+    if (extra) {
+      extra.innerHTML = `
+        <div class="meta" style="margin-bottom:0">
+          <div>
+            <label>Tipo de carga</label>
+            <select id="meta-tipo">
+              <option value="INVENTARIO DE CIERRE">INVENTARIO DE CIERRE</option>
+              <option value="DEVOLUCIONES">DEVOLUCIONES</option>
+            </select>
+          </div>
+          <div id="empresa-wrap" style="display:none">
+            <label>Empresa</label>
+            <select id="meta-familia">
+              <option value="PANIFICADORA COSTA DORADA, C.A">PANIFICADORA COSTA DORADA, C.A</option>
+              <option value="LA TATA DE LA LIBERTAD, C.A">LA TATA DE LA LIBERTAD, C.A</option>
+            </select>
+          </div>
+        </div>
+        <small class="muted" id="dev-note" style="display:none">Las devoluciones aplican solo para la sede BELLO CAMPO.</small>
+      `;
+    }
+    const tipoSel = document.getElementById('meta-tipo');
+    const empresaWrap = document.getElementById('empresa-wrap');
+    const empresaSel = document.getElementById('meta-familia');
+    const sedeInput = document.getElementById('meta-sede');
+    const devNote = document.getElementById('dev-note');
+
+    // utilidades UI locales
+    const rows = document.getElementById('rows');
+    const addRowBtn = document.getElementById('add-row');
+    function setItemsVisible(show) {
+      if (rows) rows.style.display = show ? '' : 'none';
+      if (addRowBtn) addRowBtn.style.display = show ? '' : 'none';
+    }
+    function resetRows() {
+      if (!rows) return;
+      rows.innerHTML = '';
+      rows.appendChild(createRow());
+    }
+    function applyCatalog(names) {
+      PRODUCT_GROUPS = null;
+      if (Array.isArray(names) && names.length) {
+        // mapear a {id,name}; usamos el nombre como id para que codeMap lo resuelva
+        PRODUCT_CATALOG = names.map(n => ({ id: n, name: n }));
+      } else {
+        PRODUCT_CATALOG = [];
+      }
+      resetRows();
+    }
+    function syncState() {
+      const tipo = (tipoSel?.value || '').toUpperCase();
+      const sede = (sedeInput?.value || '').trim().toUpperCase();
+      const isDev = tipo === 'DEVOLUCIONES';
+      if (empresaWrap) {
+        empresaWrap.style.display = isDev ? '' : 'none';
+        if (!isDev && empresaSel) empresaSel.value = '';
+      }
+      if (devNote) devNote.style.display = isDev ? '' : 'none';
+      if (!isDev) {
+        // Inventario de cierre: usar catálogo LA TATA
+        CODE_MAP = cfg.codeMap || {};
+        UND_MAP = cfg.undMap || {};
+        applyCatalog((cfg.inventory && cfg.inventory.lata) ? cfg.inventory.lata : []);
+        setItemsVisible(true);
+        return;
+      }
+      // Devoluciones: solo válido para BELLO CAMPO
+      const isBelloCampo = sede === 'BELLO CAMPO' || sede === 'BC';
+      if (!isBelloCampo) {
+        setItemsVisible(false);
+        applyCatalog([]);
+        return;
+      }
+      const emp = (empresaSel?.value || '').toUpperCase();
+      if (emp === 'PANIFICADORA COSTA DORADA, C.A') {
+        // Catálogo PDT (sin códigos específicos)
+        CODE_MAP = {}; // no tenemos códigos PDT en este cliente
+        UND_MAP = {};  // usar heurística
+        applyCatalog((cfg.inventory && cfg.inventory.pdt) ? cfg.inventory.pdt : []);
+        setItemsVisible(true);
+      } else {
+        // Catálogo LA TATA
+        CODE_MAP = cfg.codeMap || {};
+        UND_MAP = cfg.undMap || {};
+        applyCatalog((cfg.inventory && cfg.inventory.lata) ? cfg.inventory.lata : []);
+        setItemsVisible(true);
+      }
+    }
+    tipoSel?.addEventListener('change', syncState);
+    empresaSel?.addEventListener('change', syncState);
+    sedeInput?.addEventListener('input', syncState);
+    // Estado inicial
+    syncState();
+  }
 
   const rowsEl = document.getElementById("rows");
   const addBtn = document.getElementById("add-row");
