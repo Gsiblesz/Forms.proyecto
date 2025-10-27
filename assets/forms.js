@@ -322,64 +322,12 @@ window.FORMS = [
     ]
   },
   {
-    id: "congelados-hojaldre",
-    title: "CONGELADOS HOJALDRE",
-    sheetTab: "CONGELADOS HOJALDRE",
-    color: "#c9eef7", // celeste
-    description: "Formulario de Operaciones de Manufactura.\n\nEntrega de producto terminado a tienda.",
-    sedes: ["SL","LPG","SC","SCH","PB-2","E PB-2","LG","VM","BC"],
-    catalog: [
-      { id: "TEQUEÑOS (15 UND)", name: "TEQUEÑOS (15 UND)" },
-      { id: "TEQUEÑOS (30 UND)", name: "TEQUEÑOS (30 UND)" },
-      { id: "CROISSANT SIMPLE 120 GR 1 UND ST", name: "CROISSANT SIMPLE 120 GR 1 UND ST" },
-      { id: "CROISSANT CHOCO LECHE 160 GR 1 UND ST", name: "CROISSANT CHOCO LECHE 160 GR 1 UND ST" },
-      { id: "CROISSANT CHOCO OSCURO 160 GR 1 UND ST", name: "CROISSANT CHOCO OSCURO 160 GR 1 UND ST" },
-      { id: "HOJALDRE DE MANZANA 160 GR 1 UND ST", name: "HOJALDRE DE MANZANA 160 GR 1 UND ST" },
-      { id: "MINI CROISSANT 1 UND ST", name: "MINI CROISSANT 1 UND ST" },
-      { id: "CRUFFIN PLAIN ST 1 UND", name: "CRUFFIN PLAIN ST 1 UND" }
-    ],
-    codeMap: {
-      "TEQUEÑOS (15 UND)": "PTEM0136",
-      "TEQUEÑOS (30 UND)": "PTEM0135",
-      "CROISSANT SIMPLE 120 GR 1 UND ST": "STPC0013",
-      "CROISSANT CHOCO LECHE 160 GR 1 UND ST": "STPC0014",
-      "CROISSANT CHOCO OSCURO 160 GR 1 UND ST": "STPC0015",
-      "HOJALDRE DE MANZANA 160 GR 1 UND ST": "STPC0016",
-      "MINI CROISSANT 1 UND ST": "STPC0022",
-      "CRUFFIN PLAIN ST 1 UND": "STPC0024"
-    },
-    undMap: {
-      "TEQUEÑOS (15 UND)": "PAQ",
-      "TEQUEÑOS (30 UND)": "PAQ",
-      "CROISSANT SIMPLE 120 GR 1 UND ST": "UND",
-      "CROISSANT CHOCO LECHE 160 GR 1 UND ST": "UND",
-      "CROISSANT CHOCO OSCURO 160 GR 1 UND ST": "UND",
-      "HOJALDRE DE MANZANA 160 GR 1 UND ST": "UND",
-      "MINI CROISSANT 1 UND ST": "UND",
-      "CRUFFIN PLAIN ST 1 UND": "UND"
-    }
-  },
-  {
     id: "inventario-pt",
     title: "INVENTARIO PRODUCTO TERMINADO",
     sheetTab: "INVENTARIO PRODUCTO TERMINADO",
     color: "#e7e0f1", // lila
     catalog: []
   },
-  {
-    id: "horneado",
-    title: "HORNEADO",
-    sheetTab: "HORNEADO",
-    color: "#ffd5d5", // rosado
-    catalog: []
-  },
-  {
-    id: "empaquetado",
-    title: "EMPAQUETADO",
-    sheetTab: "EMPAQUETADO",
-    color: "#e6e6e6", // gris
-    catalog: []
-  }
 ];
 
 // Utilidad para encontrar config por id o devolver la primera
