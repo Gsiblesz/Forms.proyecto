@@ -6,14 +6,15 @@
     <title>Selecciona un formulario</title>
     <link rel="stylesheet" href="./assets/styles.css" />
     <style>
-  .menu { max-width: 960px; margin: 80px auto 24px; padding: 16px; }
-      .grid { display:grid; grid-template-columns: repeat(auto-fill, minmax(220px,1fr)); gap:16px; }
-      .card { border:1px solid var(--border); border-radius:12px; padding:16px; background:#0f0f12; }
-      .card h3 { margin:0 0 8px; font-size:16px; }
-      .swatch { height:8px; border-radius:6px; margin-bottom:12px; }
-      .card a { display:inline-block; margin-top:8px; }
-  .brand { position:fixed; top:12px; left:16px; display:flex; gap:12px; align-items:center; z-index:10; }
-  .brand img { height:44px; width:auto; border-radius:6px; box-shadow:0 0 0 2px #000; background:#000; }
+      /* Layout más amplio y tarjetas más grandes para solo dos formularios */
+      .menu { max-width: 1200px; margin: 80px auto 24px; padding: 16px; }
+      .grid { display:grid; grid-template-columns: repeat(auto-fit, minmax(360px,1fr)); gap:24px; }
+      .card { border:1px solid var(--border); border-radius:16px; padding:24px; background:#0f0f12; }
+      .card h3 { margin:0 0 10px; font-size:22px; line-height:1.2; }
+      .swatch { height:10px; border-radius:8px; margin-bottom:14px; }
+      .card a { display:inline-block; margin-top:12px; padding:12px 16px; font-size:16px; }
+      .brand { position:fixed; top:12px; left:16px; display:flex; gap:12px; align-items:center; z-index:10; }
+      .brand img { height:44px; width:auto; border-radius:6px; box-shadow:0 0 0 2px #000; background:#000; }
       .credit { position:fixed; right:16px; bottom:12px; font-size:12px; color:#9aa0a6; }
     </style>
   </head>
@@ -74,7 +75,8 @@
       function renderCards(){
         const cont = document.getElementById('cards');
         cont.innerHTML = '';
-        (window.FORMS||[]).forEach(form=>{
+        const allowed = (window.FORMS||[]).filter(f => f && ['tata-libertad','inventario-pt'].includes(f.id));
+        allowed.forEach(form=>{
           const url = new URL('./index.html', location.href);
           url.searchParams.set('form', form.id);
           const a = document.createElement('div');
@@ -148,7 +150,8 @@
       // Poblar selector de sheet desde FORMS
       if (Array.isArray(window.FORMS) && window.FORMS.length && gsSheetSelect) {
         gsSheetSelect.innerHTML = '';
-        window.FORMS.forEach((f, idx) => {
+        const allowed = (window.FORMS||[]).filter(f => f && ['tata-libertad','inventario-pt'].includes(f.id));
+        allowed.forEach((f, idx) => {
           const opt = document.createElement('option');
           opt.value = f.sheetTab;
           opt.textContent = `${f.title} — ${f.sheetTab}`;
