@@ -790,3 +790,14 @@ if (document.readyState === "loading") {
   // DOM ya cargado
   main();
 }
+
+const tipoSel = document.getElementById('meta-tipo');
+const sedeInput = document.getElementById('meta-sede');
+
+if (tipoSel && sedeInput) {
+  tipoSel.addEventListener('change', () => {
+    if (tipoSel.value.toUpperCase() === 'DEVOLUCIONES') {
+      sedeInput.value = 'BELLO CAMPO';
+    }
+  });
+}
