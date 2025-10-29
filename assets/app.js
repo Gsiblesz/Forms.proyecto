@@ -801,18 +801,3 @@ if (tipoSel && sedeInput) {
     }
   });
 }
-
-document.addEventListener('DOMContentLoaded', () => {
-  const gsUrlInput = document.getElementById('gs-url');
-  const gsTokenInput = document.getElementById('gs-token');
-
-  if (gsUrlInput) {
-    gsUrlInput.value = DEFAULT_GS_URL;
-    gsUrlInput.readOnly = true;
-  }
-
-  if (gsTokenInput) {
-    gsTokenInput.value = DEFAULT_GS_TOKEN;
-    gsTokenInput.readOnly = true;
-  }
-});
