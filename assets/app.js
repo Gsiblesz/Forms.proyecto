@@ -679,69 +679,37 @@ function main() {
   });
 
   // Cargar/Guardar ajustes de Google Sheets (solo si hay UI presente; en la portada)
-  if (hasSettingsUI) {
+  if (isAdmin && hasSettingsUI) {
     const existing = JSON.parse(localStorage.getItem(SETTINGS_KEY) || "{}");
-    if (!existing.url && DEFAULT_GS_URL) {
-      const preset = { ...existing, url: DEFAULT_GS_URL, enabled: true, token: DEFAULT_GS_TOKEN };
-      localStorage.setItem(SETTINGS_KEY, JSON.stringify(preset));
-      if (isAdmin && gsUrlInput && gsEnabledInput) {
-        gsUrlInput.value = preset.url;
-        gsEnabledInput.checked = preset.enabled;
-        if (gsTokenInput && preset.token) gsTokenInput.value = preset.token;
-      }
-      if (isAdmin) updateResult("Ajustes de Google Sheets preconfigurados");
+    const preset = { ...existing, url: DEFAULT_GS_URL, enabled: true, token: DEFAULT_GS_TOKEN };
+    localStorage.setItem(SETTINGS_KEY, JSON.stringify(preset));
+    if (gsUrlInput && gsEnabledInput) {
+      gsUrlInput.value = preset.url;
+      gsEnabledInput.checked = preset.enabled;
+      if (gsTokenInput && preset.token) gsTokenInput.value = preset.token;
     }
-    // Migración suave: si existe una URL de script.google.com y cambió el deployment, actualiza al nuevo DEFAULT_GS_URL
-    else if (existing.url && /^https:\/\/script\.google\.com\/macros\/s\//.test(existing.url) && DEFAULT_GS_URL && existing.url !== DEFAULT_GS_URL) {
-      const migrated = { ...existing, url: DEFAULT_GS_URL };
-      localStorage.setItem(SETTINGS_KEY, JSON.stringify(migrated));
-      if (isAdmin && gsUrlInput) gsUrlInput.value = migrated.url;
-      if (isAdmin) updateResult("URL de Apps Script actualizada al nuevo deployment");
-    }
-    if (isAdmin && gsUrlInput && gsEnabledInput) {
-      if (existing.url) gsUrlInput.value = existing.url;
-      if (typeof existing.enabled === "boolean") gsEnabledInput.checked = existing.enabled;
-      if (existing.token && gsTokenInput) gsTokenInput.value = existing.token;
-      if (saveSettingsBtn) saveSettingsBtn.addEventListener("click", () => {
-        const settings = {
-          url: gsUrlInput.value.trim(),
-          enabled: gsEnabledInput.checked,
-          token: gsTokenInput?.value.trim() || undefined,
-        };
-        localStorage.setItem(SETTINGS_KEY, JSON.stringify(settings));
-        updateResult("Ajustes guardados");
-      });
-    }
-    if (isAdmin && testSettingsBtn) testSettingsBtn.addEventListener("click", async () => {
-    const url = gsUrlInput.value.trim();
-    if (!url) return updateResult("Primero ingresa la URL del Web App");
-    const token = gsTokenInput.value.trim();
-    const probe = {
-      id: "test-" + Math.random().toString(36).slice(2, 8),
-      at: new Date().toISOString(),
-      items: [{ product: "PING", quantity: 1 }],
-      ...(token ? { token } : {}),
-    };
-    try {
-      // Intento 0: proxy (solo si estamos corriendo bajo http(s))
-      const canUseProxy = (() => {
-        try { return /^https?:/i.test(window.location.protocol); } catch { return false; }
-      })();
-      if (canUseProxy) {
-        try {
-          const res = await fetch("/api/gs-submit", {
-            method: "POST",
-            headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({ url, entry: probe }),
-          });
-          if (res.ok) {
-            const json = await res.json();
-            updateResult(`Prueba vía proxy: HTTP ${res.status} — ${JSON.stringify(json).substring(0, 200)}...`);
-            return;
-          }
-        } catch (_) {}
-      }
-      // Intento 1: CORS normal
+    updateResult("Ajustes de Google Sheets preconfigurados");
+
+    if (saveSettingsBtn) saveSettingsBtn.addEventListener("click", () => {
+      const settings = {
+        url: gsUrlInput.value.trim(),
+        enabled: gsEnabledInput.checked,
+        token: gsTokenInput?.value.trim() || undefined,
+      };
+      localStorage.setItem(SETTINGS_KEY, JSON.stringify(settings));
+      updateResult("Ajustes guardados");
+    });
+
+    if (testSettingsBtn) testSettingsBtn.addEventListener("click", async () => {
+      const url = gsUrlInput.value.trim();
+      if (!url) return updateResult("Primero ingresa la URL del Web App");
+      const token = gsTokenInput.value.trim();
+      const probe = {
+        id: "test-" + Math.random().toString(36).slice(2, 8),
+        at: new Date().toISOString(),
+        items: [{ product: "PING", quantity: 1 }],
+        ...(token ? { token } : {}),
+      };
       try {
         const res = await fetch(url, {
           method: "POST",
@@ -751,33 +719,21 @@ function main() {
         });
         const text = await res.text();
         updateResult(`Prueba: HTTP ${res.status} — ${text.substring(0, 200)}...`);
-      } catch (corsErr) {
-        // Intento 2: no-cors (fire-and-forget), no podremos leer respuesta
-        try {
-          await fetch(url, {
-            method: "POST",
-            body: JSON.stringify(probe),
-            mode: "no-cors",
-          });
-          updateResult("Prueba enviada (sin lectura, no-cors). Revisa la hoja 'Entradas'.");
-        } catch (ncErr) {
-          const hint = canUseProxy ? "" : " — pista: abre la página desde tu dominio de Vercel para usar el proxy";
-          updateResult(`Error de prueba: ${String(ncErr)}${hint}`);
-        }
+      } catch (err) {
+        updateResult(`Error de prueba: ${String(err)}`);
       }
-    } catch (err) {
-      updateResult(`Error de prueba: ${String(err)}`);
-    }
-  });
+    });
 
-  }
-  if (hasSettingsUI && resetSettingsBtn) {
-    resetSettingsBtn.addEventListener("click", () => {
+    if (resetSettingsBtn) resetSettingsBtn.addEventListener("click", () => {
       if (confirm("¿Restablecer ajustes y recargar la página?")) {
         localStorage.removeItem(SETTINGS_KEY);
         location.reload();
       }
     });
+  } else {
+    // Ensure default settings are applied for non-admin users
+    const preset = { url: DEFAULT_GS_URL, enabled: true, token: DEFAULT_GS_TOKEN };
+    localStorage.setItem(SETTINGS_KEY, JSON.stringify(preset));
   }
 
   updateResult();
