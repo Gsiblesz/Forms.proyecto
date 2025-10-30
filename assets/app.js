@@ -775,5 +775,9 @@ if (cfg.id === 'solicitud-tata-libertad') {
   // Ocultar controles extra, solo mostrar los campos básicos
   const extra = document.getElementById('form-extra');
   if (extra) extra.innerHTML = '';
-  // Puedes agregar aquí lógica adicional si necesitas validar solo los campos básicos
+  // Ocultar tipo y familia si existen
+  const tipoSel = document.getElementById('meta-tipo');
+  if (tipoSel) tipoSel.parentElement.style.display = 'none';
+  const familiaWrap = document.getElementById('familia-wrap');
+  if (familiaWrap) familiaWrap.style.display = 'none';
 }
