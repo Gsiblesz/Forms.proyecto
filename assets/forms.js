@@ -318,7 +318,19 @@ window.FORMS = [
           "PASTELITO DE HOJALDRE DE POLLO CONGELADO 1 UND ST",
           "PASTELITO DE HOJALDRE RICOTA Y ESPINACA 1 UND ST"
         ]
-      }
+      // ...objeto de registro de LA TATA DE LA LIBERTAD...
+},
+{
+  id: "solicitud-tata-libertad",
+  title: "Solicitud - LA TATA DE LA LIBERTAD",
+  sheetTab: "SOLICITUDES",
+  color: "#f1c4b8", // color distintivo para solicitudes
+  description: "Formulario de solicitud de productos para LA TATA DE LA LIBERTAD.",
+  sedes: ["SL", "LPG", "SC", "SCH", "PB-2", "E PB-2", "LG", "VM", "BC"],
+  fields: ["FECHA", "SEDE", "PRODUCTO", "CANTIDAD", "RESPONSABLE"],
+  catalog: [],
+},
+// ...siguiente formulario...}
     ]
   },
   {
