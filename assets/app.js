@@ -757,3 +757,23 @@ if (tipoSel && sedeInput) {
     }
   });
 }
+
+// Personalización para el formulario de solicitud de LA TATA DE LA LIBERTAD
+if (cfg.id === 'solicitud-tata-libertad') {
+  // Datalist de sedes
+  const sedeList = document.getElementById('sede-list');
+  if (sedeList && Array.isArray(cfg.sedes)) {
+    sedeList.innerHTML = '';
+    cfg.sedes.forEach(s => {
+      const opt = document.createElement('option');
+      opt.value = s; sedeList.appendChild(opt);
+    });
+  }
+  // Etiqueta de responsable
+  const lbl = document.getElementById('label-resp');
+  if (lbl) lbl.textContent = 'Responsable';
+  // Ocultar controles extra, solo mostrar los campos básicos
+  const extra = document.getElementById('form-extra');
+  if (extra) extra.innerHTML = '';
+  // Puedes agregar aquí lógica adicional si necesitas validar solo los campos básicos
+}

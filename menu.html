@@ -3,7 +3,7 @@
   <head>
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
-    <title>Selecciona un formulario</title>
+    <title>Sistema de Registros y Solicitudes</title>
     <link rel="stylesheet" href="./assets/styles.css" />
     <style>
       .menu {
@@ -54,7 +54,7 @@
       <img id="brand-img" src="./assets/brand.png" alt="PAN DE TATA" onerror="this.src='./assets/brand.svg'" />
     </div>
     <main class="menu">
-      <h1>Elige un formulario</h1>
+      <h1>Sistema para hacer registros y solicitudes de productos</h1>
       <div id="auth" style="margin:16px 0; padding:12px; border:1px solid var(--border); border-radius:12px; background:#0f0f12;">
         <div id="auth-form">
           <label>Ingresa tu clave para continuar</label>
@@ -71,6 +71,19 @@
           <button id="logout" class="btn danger" style="margin-left:8px">Salir</button>
         </div>
       </div>
+      <div class="grid" style="margin-bottom:32px">
+        <div class="card">
+          <div class="swatch" style="background:#f1c4b8"></div>
+          <h3>Solicitudes</h3>
+          <a class="btn" href="index.html?form=solicitud-tata-libertad">Solicitud - LA TATA DE LA LIBERTAD</a>
+        </div>
+        <div class="card">
+          <div class="swatch" style="background:#b8f1c4"></div>
+          <h3>Registros</h3>
+          <a class="btn" href="index.html?form=tata-libertad">Registro - LA TATA DE LA LIBERTAD</a>
+          <a class="btn" href="index.html?form=inventario-pt">Inventario Producto Terminado</a>
+        </div>
+      </div>
       <div id="cards" class="grid" style="display:none"></div>
     </main>
     <div class="credit">Elaborado por el pasante de producción <strong>Gerardo Siblesz</strong></div>
@@ -78,23 +91,6 @@
     <script>
       const ROLE_KEY = 'app_role';
       const SETTINGS_KEY = 'gs_settings';
-      function renderCards() {
-        const cont = document.getElementById('cards');
-        cont.innerHTML = '';
-        const allowed = (window.FORMS || []).filter(f => f && ['tata-libertad', 'inventario-pt'].includes(f.id));
-        allowed.forEach(form => {
-          const url = new URL('./index.html', location.href);
-          url.searchParams.set('form', form.id);
-          const a = document.createElement('div');
-          a.className = 'card';
-          a.innerHTML = `
-            <div class="swatch" style="background:${form.color}"></div>
-            <h3>${form.title}</h3>
-            <a class="btn" href="${url.toString()}">Abrir</a>
-          `;
-          cont.appendChild(a);
-        });
-      }
       function showRole(role) {
         const authForm = document.getElementById('auth-form');
         const authOk = document.getElementById('auth-ok');
@@ -105,7 +101,6 @@
           authOk.style.display = '';
           roleLabel.textContent = role === 'admin' ? 'Rol: Administrador' : 'Rol: Trabajador';
           cards.style.display = '';
-          renderCards();
         } else {
           authForm.style.display = '';
           authOk.style.display = 'none';
