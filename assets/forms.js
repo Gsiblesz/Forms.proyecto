@@ -328,7 +328,8 @@ window.FORMS = [
   description: "Formulario de solicitud de productos para LA TATA DE LA LIBERTAD.",
   sedes: ["SL", "LPG", "SC", "SCH", "PB-2", "E PB-2", "LG", "VM", "BC"],
   fields: ["FECHA", "SEDE", "PRODUCTO", "CANTIDAD", "RESPONSABLE"],
-  catalog: [],
+  // <-- Aquí debes pegar la línea
+  catalog: window.FORMS.find(f => f.id === "tata-libertad")?.catalog || [],
 },
 // ...siguiente formulario...}
     ]
