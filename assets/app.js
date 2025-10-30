@@ -268,6 +268,28 @@ function download(filename, content, type = "text/plain") {
 }
 
 function main() {
+  // Configuración inicial
+  function loadFormByTab(tabId) {
+    const formConfig = window.FORMS.find(f => f.id === tabId);
+    if (!formConfig) {
+      console.error(`No se encontró configuración para la pestaña: ${tabId}`);
+      return;
+    }
+
+    // Actualizar el título y descripción del formulario
+    const titleEl = document.getElementById("form-title");
+    const descEl = document.getElementById("form-desc");
+    if (titleEl) titleEl.textContent = formConfig.title;
+    if (descEl) descEl.textContent = formConfig.description;
+  }
+
+  // Detectar la pestaña seleccionada al cargar la página
+  const urlParams = new URLSearchParams(window.location.search);
+  const activeTab = urlParams.get("tab") || "solicitudes";
+  loadFormByTab(activeTab);
+}
+
+
   // Gate de acceso por rol: si no hay rol, volver a portada
   const role = localStorage.getItem(ROLE_KEY);
   if (!role) {
@@ -738,7 +760,7 @@ function main() {
 
   updateResult();
   try { console.debug("Formulario cargado", { formId, cfg }); } catch {}
-}
+
 // Inicializar de forma robusta con y sin defer
 if (document.readyState === "loading") {
   window.addEventListener("DOMContentLoaded", main);
@@ -757,3 +779,25 @@ if (tipoSel && sedeInput) {
     }
   });
 }
+
+// Cambiar entre formularios de 'Solicitudes' y 'Registros' según la pestaña activa
+function loadFormByTab(tabId) {
+  const formConfig = window.FORMS.find(f => f.id === tabId);
+  if (!formConfig) {
+    console.error(`No se encontró configuración para la pestaña: ${tabId}`);
+    return;
+  }
+
+  // Actualizar el título y descripción del formulario
+  const titleEl = document.getElementById("form-title");
+  const descEl = document.getElementById("form-desc");
+  if (titleEl) titleEl.textContent = formConfig.title;
+  if (descEl) descEl.textContent = formConfig.description;
+}
+
+// Detectar la pestaña seleccionada al cargar la página
+const urlParams = new URLSearchParams(window.location.search);
+const activeTab = urlParams.get("tab") || "solicitudes";
+loadFormByTab(activeTab);
+
+main();

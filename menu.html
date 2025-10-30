@@ -54,7 +54,16 @@
       <img id="brand-img" src="./assets/brand.png" alt="PAN DE TATA" onerror="this.src='./assets/brand.svg'" />
     </div>
     <main class="menu">
-      <h1>Elige un formulario</h1>
+  <h1>Elige un formulario</h1>
+  <div class="tabs">
+    <a href="./index.html?tab=solicitudes" class="btn">Solicitudes</a>
+    <a href="./index.html?tab=registros" class="btn">Registros</a>
+  </div>
+  <div id="auth" style="margin:16px 0; padding:12px; border:1px solid var(--border); border-radius:12px; background:#0f0f12;">
+    <!-- Aquí está el formulario de autenticación -->
+  </div>
+  <div id="cards" class="grid" style="display:none"></div>
+</main>
       <div id="auth" style="margin:16px 0; padding:12px; border:1px solid var(--border); border-radius:12px; background:#0f0f12;">
         <div id="auth-form">
           <label>Ingresa tu clave para continuar</label>

@@ -3,9 +3,9 @@
 
 window.FORMS = [
   {
-    id: "tata-libertad",
-    title: "LA TATA DE LA LIBERTAD",
-    sheetTab: "LA TATA DE LA LIBERTAD",
+    id: "solicitudes",
+    title: "Solicitudes - LA TATA DE LA LIBERTAD",
+    sheetTab: "SOLICITUDES",
     color: "#b8f1c4", // verde suave
     catalog: [], // catálogo plano opcional
     description: "Formulario de Operaciones de Manufactura.\n\nEntrega de producto terminado a tiendas, sedes y ventas al mayor",
@@ -322,8 +322,8 @@ window.FORMS = [
     ]
   },
   {
-    id: "inventario-pt",
-    title: "INVENTARIO PRODUCTO TERMINADO",
+    id: "registros",
+    title: "Registros - INVENTARIO PRODUCTO TERMINADO",
     sheetTab: "INVENTARIO PRODUCTO TERMINADO",
     color: "#e7e0f1", // lila
     description: "Registro de inventario de cierre y devoluciones.",
