@@ -3,9 +3,9 @@
 
 window.FORMS = [
   {
-    id: "tata-libertad",
-    title: "LA TATA DE LA LIBERTAD",
-    sheetTab: "LA TATA DE LA LIBERTAD",
+    id: "solicitudes",
+    title: "Registros - LA TATA DE LA LIBERTAD",
+    sheetTab: "SOLICITUDES",
     color: "#b8f1c4", // verde suave
     catalog: [], // catálogo plano opcional
     description: "Formulario de Operaciones de Manufactura.\n\nEntrega de producto terminado a tiendas, sedes y ventas al mayor",
@@ -318,25 +318,22 @@ window.FORMS = [
           "PASTELITO DE HOJALDRE DE POLLO CONGELADO 1 UND ST",
           "PASTELITO DE HOJALDRE RICOTA Y ESPINACA 1 UND ST"
         ]
-      // ...objeto de registro de LA TATA DE LA LIBERTAD...
-},
-{
-  id: "solicitud-tata-libertad",
-  title: "Solicitud - LA TATA DE LA LIBERTAD",
-  sheetTab: "SOLICITUDES",
-  color: "#f1c4b8", // color distintivo para solicitudes
-  description: "Formulario de solicitud de productos para LA TATA DE LA LIBERTAD.",
-  sedes: ["SL", "LPG", "SC", "SCH", "PB-2", "E PB-2", "LG", "VM", "BC"],
-  fields: ["FECHA", "SEDE", "PRODUCTO", "CANTIDAD", "RESPONSABLE"],
-  // <-- Aquí debes pegar la línea
-  catalog: window.FORMS.find(f => f.id === "tata-libertad")?.catalog || [],
-},
-// ...siguiente formulario...}
+      }
     ]
   },
+  // Formulario de Solicitudes simple (solo fecha, responsable, productos y cantidades)
+  // Reutiliza productos/mapas de LA TATA mediante inheritFrom
   {
-    id: "inventario-pt",
-    title: "INVENTARIO PRODUCTO TERMINADO",
+    id: "solicitudes-pedido",
+    title: "LA TATA DE LA LIBERTAD SOLICITUDES",
+    sheetTab: "SOLICITUDES",
+    color: "#b8f1c4",
+    description: "Formulario de Operaciones de Manufactura. Solicitud de producto terminado a tiendas, sedes y ventas al mayor.",
+    inheritFrom: "solicitudes"
+  },
+  {
+    id: "registros",
+    title: "Registros - INVENTARIO PRODUCTO TERMINADO",
     sheetTab: "INVENTARIO PRODUCTO TERMINADO",
     color: "#e7e0f1", // lila
     description: "Registro de inventario de cierre y devoluciones.",

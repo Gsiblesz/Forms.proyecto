@@ -1,12 +1,8 @@
-// Catálogo simple de productos por defecto; cada formulario puede sobreescribirlo en assets/forms.js
-let PRODUCT_CATALOG = [
-  { id: "P-001", name: "Arroz 1Kg" },
-  { id: "P-002", name: "Azúcar 1Kg" },
-  { id: "P-003", name: "Aceite 1L" },
-  { id: "P-004", name: "Harina 1Kg" },
-  { id: "P-005", name: "Café 500g" },
-];
+// Catálogo por defecto vacío. Siempre se sobreescribe desde assets/forms.js
+// según el formulario activo (o por grupos en LA TATA / inventario).
+let PRODUCT_CATALOG = [];
 let PRODUCT_GROUPS = null; // [{label, products:[string]}]
+let QTY_LABEL = 'Cantidad'; // texto del label para el campo cantidad en las filas
 let CODE_MAP = {}; // opcional por formulario: { nombreProducto: codigo }
 let UND_MAP = {};  // opcional por formulario: { nombreProducto: 'UND'|'PAQ'|'CAJ'|'KG' }
 
@@ -15,6 +11,8 @@ const LAST_SUBMIT_KEY = "last_submit_signature"; // { hash: string, at: number }
 const DUPLICATE_WINDOW_MS = 20_000; // bloquear reenvíos idénticos dentro de 20s
 const SUBMIT_COOLDOWN_MS = 4_000;  // mantener botón deshabilitado X segundos tras envío
 
+// Guardado local (localStorage). Pon en false para desactivar completamente el almacenamiento local
+const ENABLE_LOCAL_SAVE = false;
 const STORAGE_KEY = "productos_registrados";
 const SETTINGS_KEY = "gs_settings"; // { url: string, enabled: boolean, token?: string }
 const DEFAULT_GS_URL = "https://script.google.com/macros/s/AKfycby9Iw50bCcbINg29DWhMiUxnHkw2VoX68A1eq0ZKAF46lrNLZl-shsOucAqKODULxBSSQ/exec";
@@ -95,9 +93,13 @@ function createRow(productId = "", quantity = "") {
     `;
   }
 
+  const qtyLabel = QTY_LABEL || 'Cantidad';
   div.innerHTML = `
     <select class="product" required>${optionsHtml}</select>
-    <input type="number" class="quantity" min="0" step="1" placeholder="0" value="${quantity}" required />
+    <div class="qty-cell">
+      <label class="row-label">${qtyLabel}</label>
+      <input type="number" class="quantity" min="0" step="1" placeholder="0" value="${quantity}" required />
+    </div>
     <button type="button" class="remove-btn" title="Eliminar fila">✕</button>
   `;
 
@@ -140,11 +142,14 @@ function validate(items) {
 }
 
 function save(items, meta) {
-  const prev = JSON.parse(localStorage.getItem(STORAGE_KEY) || "[]");
   const now = new Date().toISOString();
   // ID corto: base36 timestamp + 4 chars aleatorios
   const shortId = (Date.now().toString(36) + Math.random().toString(36).slice(2,6)).toUpperCase();
   const entry = { id: shortId, at: now, items, meta };
+  if (!ENABLE_LOCAL_SAVE) {
+    return entry; // no persistimos en localStorage cuando está desactivado
+  }
+  const prev = JSON.parse(localStorage.getItem(STORAGE_KEY) || "[]");
   const next = [...prev, entry];
   localStorage.setItem(STORAGE_KEY, JSON.stringify(next));
   return entry;
@@ -206,7 +211,14 @@ async function maybeSendToSheets(entry) {
 
 function updateResult(message = null, type = "info") {
   const el = document.getElementById("result");
-  if (message == null) {
+  if (!el) return;
+  if (!ENABLE_LOCAL_SAVE && message == null) {
+    // Sin guardado local: no mostramos resumen, solo mensajes explícitos
+    el.classList.add("hidden");
+    el.innerHTML = "";
+    return;
+  }
+  if (ENABLE_LOCAL_SAVE && message == null) {
     const all = JSON.parse(localStorage.getItem(STORAGE_KEY) || "[]");
     if (all.length === 0) {
       el.classList.add("hidden");
@@ -268,17 +280,42 @@ function download(filename, content, type = "text/plain") {
 }
 
 function main() {
+  // Configuración inicial
+  function loadFormByTab(tabId) {
+    const formConfig = window.FORMS.find(f => f.id === tabId);
+    if (!formConfig) {
+      console.error(`No se encontró configuración para la pestaña: ${tabId}`);
+      return;
+    }
+
+    // Actualizar el título y descripción del formulario
+    const titleEl = document.getElementById("form-title");
+    const descEl = document.getElementById("form-desc");
+    if (titleEl) titleEl.textContent = formConfig.title;
+    if (descEl) descEl.textContent = formConfig.description;
+  }
+
+  // Detectar la pestaña seleccionada al cargar la página
+  const urlParams = new URLSearchParams(window.location.search);
+  const hasFormParam = urlParams.has("form");
+  if (!hasFormParam) {
+    const activeTab = urlParams.get("tab") || "solicitudes";
+    loadFormByTab(activeTab);
+  }
+}
+
+
   // Gate de acceso por rol: si no hay rol, volver a portada
   const role = localStorage.getItem(ROLE_KEY);
   if (!role) {
     try { window.location.replace("./menu.html"); } catch { window.location.href = "./menu.html"; }
-    return;
+    // No usamos 'return' en el nivel superior para evitar errores de sintaxis
   }
   const isAdmin = role === 'admin';
   // Esperar a que forms.js cargue si aún no está disponible
   if (!Array.isArray(window.FORMS) || window.FORMS.length === 0) {
+    // Defer inicialización si aún no cargó forms.js
     setTimeout(main, 120);
-    return;
   }
   // Detectar formulario desde query y configurar título/estilos
   const u = new URL(window.location.href);
@@ -294,6 +331,19 @@ function main() {
     cfg = formsList.find(f => f.id === DEFAULT_FORM_ID) || formsList[0];
   }
   if (cfg) {
+    // Herencia opcional de otro formulario (para reutilizar catálogo/grupos/mapas)
+    if (cfg.inheritFrom) {
+      try {
+        const base = (Array.isArray(formsList) ? formsList : []).find(f => f.id === cfg.inheritFrom);
+        if (base && typeof base === 'object') {
+          if (!cfg.groups && Array.isArray(base.groups)) cfg.groups = base.groups;
+          if (!cfg.catalog && Array.isArray(base.catalog)) cfg.catalog = base.catalog;
+          if (!cfg.codeMap && base.codeMap) cfg.codeMap = base.codeMap;
+          if (!cfg.undMap && base.undMap) cfg.undMap = base.undMap;
+          if (!cfg.sedes && Array.isArray(base.sedes)) cfg.sedes = base.sedes;
+        }
+      } catch {}
+    }
     // Catálogo por formulario (si se definió)
     if (Array.isArray(cfg.catalog) && cfg.catalog.length) {
       PRODUCT_CATALOG = cfg.catalog;
@@ -333,8 +383,9 @@ function main() {
     // Aplicar color suave como banda superior (opcional)
     try { document.documentElement.style.setProperty("--accent", cfg.color); } catch {}
 
-  // Personalización por formulario: LA TATA DE LA LIBERTAD
-    if (cfg.id === 'tata-libertad') {
+  // Personalización por formulario: LA TATA DE LA LIBERTAD (alias: solicitudes)
+    if (cfg.id === 'tata-libertad' || cfg.id === 'solicitudes') {
+      QTY_LABEL = 'CANTIDAD REGISTRADA';
       // Construir grupos y catálogo plano para mapear nombres
       if (Array.isArray(cfg.groups) && cfg.groups.length) {
         PRODUCT_GROUPS = cfg.groups;
@@ -398,6 +449,32 @@ function main() {
         syncTipo();
       }
     }
+    // Personalización por formulario: Solicitudes simple (fecha, sede, responsable, productos y cantidades)
+    if (cfg.id === 'solicitudes-pedido') {
+      QTY_LABEL = 'CANTIDAD SOLICITADA';
+      // Reutiliza grupos/mapas ya heredados; construir catálogo plano desde grupos si aplica
+      if (Array.isArray(cfg.groups) && cfg.groups.length) {
+        PRODUCT_GROUPS = cfg.groups;
+        const flat = [];
+        const seen = new Set();
+        for (const g of cfg.groups) {
+          for (const name of g.products) {
+            const code = (cfg.codeMap && cfg.codeMap[name]) ? cfg.codeMap[name] : name;
+            if (!seen.has(name)) { flat.push({ id: code, name }); seen.add(name); }
+          }
+        }
+        PRODUCT_CATALOG = flat;
+      }
+      // Poblar sedes igual que el formulario base (heredadas)
+      const sedeList = document.getElementById('sede-list');
+      if (sedeList && Array.isArray(cfg.sedes)) {
+        sedeList.innerHTML = '';
+        cfg.sedes.forEach(s => { const opt = document.createElement('option'); opt.value = s; sedeList.appendChild(opt); });
+      }
+      // Asegurar etiqueta de responsable por defecto
+      const lbl = document.getElementById('label-resp');
+      if (lbl) lbl.textContent = 'Responsable';
+    }
     // Personalización por formulario: CONGELADOS HOJALDRE (simple)
     if (cfg.id === 'congelados-hojaldre') {
       // poblar sedes si están definidas
@@ -415,8 +492,8 @@ function main() {
       // Este formulario no tiene TIPO/FAMILIA, así que no añadimos controles extra.
     }
   }
-  // Personalización por formulario: INVENTARIO PRODUCTO TERMINADO
-  if (cfg.id === 'inventario-pt') {
+  // Personalización por formulario: INVENTARIO PRODUCTO TERMINADO (alias: registros)
+  if (cfg && (cfg.id === 'inventario-pt' || cfg.id === 'registros')) {
     // poblar sedes si están definidas (nombres completos)
     const sedeList = document.getElementById('sede-list');
     if (sedeList && Array.isArray(cfg.sedes)) {
@@ -598,6 +675,11 @@ function main() {
       tipo: document.getElementById('meta-tipo')?.value || null,
       familia: (document.getElementById('meta-tipo')?.value === 'MERMA') ? null : (document.getElementById('meta-familia')?.value || null),
     };
+    // Forzar un tipo estándar para el formulario de Solicitudes simple
+    if (cfg && cfg.id === 'solicitudes-pedido') {
+      metaProbe.tipo = 'SOLICITUD';
+      metaProbe.familia = null;
+    }
     const signature = buildSubmitSignature(items, metaProbe);
     const lastSig = JSON.parse(localStorage.getItem(LAST_SUBMIT_KEY) || "null");
     const nowMs = Date.now();
@@ -621,7 +703,9 @@ function main() {
       // enriquecer con código y unidad por producto
       const itemsWithCode = items.map(it => ({ ...it, code: codeForProduct(it.product), und: undForProduct(it.product) }));
       const entry = save(itemsWithCode, meta);
-      let msg = `Guardado ${new Date(entry.at).toLocaleString()} (${entry.items.length} item/s)`;
+      let msg = ENABLE_LOCAL_SAVE
+        ? `Guardado ${new Date(entry.at).toLocaleString()} (${entry.items.length} item/s)`
+        : `Listo (${entry.items.length} item/s)`;
       const send = await maybeSendToSheets(entry);
       sendResult = send;
       if (send.sent) {
@@ -661,6 +745,10 @@ function main() {
   });
 
   if (exportBtn) exportBtn.addEventListener("click", () => {
+    if (!ENABLE_LOCAL_SAVE) {
+      updateResult("El guardado local está desactivado");
+      return;
+    }
     const entries = JSON.parse(localStorage.getItem(STORAGE_KEY) || "[]");
     if (entries.length === 0) {
       updateResult("No hay registros para exportar");
@@ -672,6 +760,10 @@ function main() {
   });
 
   if (clearBtn) clearBtn.addEventListener("click", () => {
+    if (!ENABLE_LOCAL_SAVE) {
+      updateResult("El guardado local está desactivado");
+      return;
+    }
     if (confirm("¿Borrar todos los registros guardados?")) {
       localStorage.removeItem(STORAGE_KEY);
       updateResult();
@@ -738,7 +830,7 @@ function main() {
 
   updateResult();
   try { console.debug("Formulario cargado", { formId, cfg }); } catch {}
-}
+
 // Inicializar de forma robusta con y sin defer
 if (document.readyState === "loading") {
   window.addEventListener("DOMContentLoaded", main);
@@ -758,26 +850,23 @@ if (tipoSel && sedeInput) {
   });
 }
 
-// Personalización para el formulario de solicitud de LA TATA DE LA LIBERTAD
-if (cfg.id === 'solicitud-tata-libertad') {
-  // Datalist de sedes
-  const sedeList = document.getElementById('sede-list');
-  if (sedeList && Array.isArray(cfg.sedes)) {
-    sedeList.innerHTML = '';
-    cfg.sedes.forEach(s => {
-      const opt = document.createElement('option');
-      opt.value = s; sedeList.appendChild(opt);
-    });
+// Cambiar título/desc por 'tab' solo si NO se está usando un formulario específico
+function loadFormByTab(tabId) {
+  const formConfig = window.FORMS.find(f => f.id === tabId);
+  if (!formConfig) {
+    console.error(`No se encontró configuración para la pestaña: ${tabId}`);
+    return;
   }
-  // Etiqueta de responsable
-  const lbl = document.getElementById('label-resp');
-  if (lbl) lbl.textContent = 'Responsable';
-  // Ocultar controles extra, solo mostrar los campos básicos
-  const extra = document.getElementById('form-extra');
-  if (extra) extra.innerHTML = '';
-  // Ocultar tipo y familia si existen
-  const tipoSel = document.getElementById('meta-tipo');
-  if (tipoSel) tipoSel.parentElement.style.display = 'none';
-  const familiaWrap = document.getElementById('familia-wrap');
-  if (familiaWrap) familiaWrap.style.display = 'none';
+  const titleEl = document.getElementById("form-title");
+  const descEl = document.getElementById("form-desc");
+  if (titleEl) titleEl.textContent = formConfig.title;
+  if (descEl) descEl.textContent = formConfig.description;
 }
+
+const _qp = new URLSearchParams(window.location.search);
+if (!_qp.has("form")) {
+  const activeTab = _qp.get("tab") || "solicitudes";
+  loadFormByTab(activeTab);
+}
+
+main();
