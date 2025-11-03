@@ -4,7 +4,7 @@
 window.FORMS = [
   {
     id: "solicitudes",
-    title: "Solicitudes - LA TATA DE LA LIBERTAD",
+    title: "Registros - LA TATA DE LA LIBERTAD",
     sheetTab: "SOLICITUDES",
     color: "#b8f1c4", // verde suave
     catalog: [], // catálogo plano opcional
@@ -320,6 +320,16 @@ window.FORMS = [
         ]
       }
     ]
+  },
+  // Formulario de Solicitudes simple (solo fecha, responsable, productos y cantidades)
+  // Reutiliza productos/mapas de LA TATA mediante inheritFrom
+  {
+    id: "solicitudes-pedido",
+    title: "LA TATA DE LA LIBERTAD SOLICITUDES",
+    sheetTab: "SOLICITUDES",
+    color: "#b8f1c4",
+    description: "Formulario de Operaciones de Manufactura. Solicitud de producto terminado a tiendas, sedes y ventas al mayor.",
+    inheritFrom: "solicitudes"
   },
   {
     id: "registros",
