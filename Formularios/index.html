@@ -1,0 +1,105 @@
+<!doctype html>
+<html lang="es">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Formulario de Productos y Cantidades</title>
+    <link rel="stylesheet" href="./assets/styles.css" />
+    <style>
+      .container {
+        max-width: 100%;
+        padding: 16px;
+        margin: 0 auto;
+      }
+      .meta {
+        display: grid;
+        grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+        gap: 16px;
+      }
+      .actions {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 12px;
+        justify-content: center;
+      }
+      @media (max-width: 768px) {
+        .meta {
+          grid-template-columns: 1fr;
+        }
+        h1 {
+          font-size: 1.5rem;
+          text-align: center;
+        }
+      }
+    </style>
+  </head>
+  <body>
+    <div class="brand" style="position:fixed; top:12px; left:16px; display:flex; gap:12px; align-items:center; z-index:10;">
+      <img src="./assets/brand.png" alt="PAN DE TATA" onerror="this.src='./assets/brand.svg'" style="height:44px;width:auto;border-radius:6px;box-shadow:0 0 0 2px #000;background:#000" />
+    </div>
+    <main class="container" style="margin-top:80px">
+      <div style="display:flex;align-items:baseline;gap:12px;flex-wrap:wrap">
+        <h1 id="form-title">Registro de Productos</h1>
+        <span id="form-badge" class="form-badge" style="display:none">Formulario</span>
+        <a class="muted" href="./menu.html">Cambiar formulario</a>
+      </div>
+      <p class="muted" id="form-subtitle" style="margin-top:-6px"></p>
+      <p class="muted" id="form-desc" style="margin-top:-10px"></p>
+      <p class="muted" style="margin-top:-6px">
+        <a id="viewer-link" href="./registros.html">Ver registros recientes →</a>
+      </p>
+
+      <form id="products-form">
+        <div id="form-extra"></div>
+        <div class="meta">
+          <div>
+            <label>Sede</label>
+            <input id="meta-sede" list="sede-list" type="text" placeholder="Ej: SL, LPG, SC..." />
+            <datalist id="sede-list"></datalist>
+          </div>
+          <div>
+            <label id="label-resp">Responsable</label>
+            <input id="meta-resp" type="text" placeholder="Nombre y apellido" />
+          </div>
+          <div>
+            <label>Fecha</label>
+            <div style="display:flex; gap:8px; align-items:center; flex-wrap:wrap">
+              <input id="meta-date" type="date" placeholder="YYYY-MM-DD" />
+              <div style="display:flex; gap:8px">
+                <button type="button" id="set-today" class="btn outline" title="Usar fecha de hoy">Hoy</button>
+                <button type="button" id="set-yesterday" class="btn outline" title="Usar fecha de ayer">Ayer</button>
+              </div>
+            </div>
+          </div>
+        </div>
+        <div id="rows" class="rows"></div>
+
+        <div class="actions">
+          <button type="button" id="add-row" class="btn">+ Agregar producto</button>
+          <button type="submit" class="btn primary">Guardar</button>
+        </div>
+        <p class="muted" style="margin-top:8px">Importante: presiona <strong>Guardar</strong> una sola vez y espera el mensaje <em>“enviado a Google Sheets (con lectura vía proxy)”</em>. No vuelvas a pulsar para evitar envíos duplicados.</p>
+      </form>
+
+      <section id="result" class="result hidden"></section>
+
+      <details class="help">
+        <summary>¿Cómo funciona?</summary>
+        <ul>
+          <li>Usa "+ Agregar producto" para añadir tantas filas como necesites.</li>
+          <li>Selecciona el producto y la cantidad (número entero ≥ 0).</li>
+          <li>Al guardar, se almacenan los items localmente (localStorage).</li>
+          <li>Puedes exportar todo a CSV o borrar los registros guardados.</li>
+        </ul>
+      </details>
+    </main>
+
+    <noscript>
+      <div style="margin:16px 0;padding:12px;border:1px solid #c33;border-radius:8px;background:#300;color:#fff">
+        JavaScript está deshabilitado. Actívalo para usar el formulario.
+      </div>
+    </noscript>
+    <script defer src="./assets/forms.js"></script>
+    <script defer src="./assets/app.js"></script>
+  </body>
+</html>
