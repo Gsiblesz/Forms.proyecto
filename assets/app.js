@@ -412,42 +412,9 @@ function main() {
       // Cambiar etiqueta de responsable a "Entregado por"
       const lbl = document.getElementById('label-resp');
       if (lbl) lbl.textContent = 'Entregado por';
-      // Insertar controles de TIPO y FAMILIA
+      // Ya no mostramos controles de TIPO/FAMILIA en Registros LA TATA
       const extra = document.getElementById('form-extra');
-      if (extra) {
-        extra.innerHTML = `
-          <div class="meta" style="margin-bottom:0">
-            <div>
-              <label>Tipo</label>
-              <select id="meta-tipo">
-                <option value="MERMA">MERMA</option>
-                <option value="ENTREGADO">ENTREGADO</option>
-              </select>
-            </div>
-            <div id="familia-wrap" style="display:none">
-              <label>Familia</label>
-              <select id="meta-familia"></select>
-            </div>
-          </div>
-        `;
-        const familiaSel = document.getElementById('meta-familia');
-        if (familiaSel && Array.isArray(cfg.familias)) {
-          familiaSel.innerHTML = cfg.familias.map(f => `<option value="${f}">${f}</option>`).join('');
-        }
-        const tipoSel = document.getElementById('meta-tipo');
-        const familiaWrap = document.getElementById('familia-wrap');
-        const syncTipo = () => {
-          const v = tipoSel.value;
-          const showFam = v === 'ENTREGADO';
-          familiaWrap.style.display = showFam ? '' : 'none';
-          if (!showFam && familiaSel) {
-            // limpiar valor de familia cuando no aplica (MERMA u otros)
-            familiaSel.value = '';
-          }
-        };
-        tipoSel.addEventListener('change', syncTipo);
-        syncTipo();
-      }
+      if (extra) extra.innerHTML = '';
     }
     // Personalización por formulario: Solicitudes simple (fecha, sede, responsable, productos y cantidades)
     if (cfg.id === 'solicitudes-pedido') {
@@ -490,6 +457,28 @@ function main() {
       const lbl = document.getElementById('label-resp');
       if (lbl) lbl.textContent = 'Entregado por';
       // Este formulario no tiene TIPO/FAMILIA, así que no añadimos controles extra.
+    }
+    // Personalización por formulario: MERMA (solo producto y cantidad)
+    if (cfg.id === 'merma') {
+      QTY_LABEL = 'CANTIDAD';
+      // Construir catálogo desde grupos heredados (de LA TATA)
+      if (Array.isArray(cfg.groups) && cfg.groups.length) {
+        PRODUCT_GROUPS = cfg.groups;
+        const flat = [];
+        const seen = new Set();
+        for (const g of cfg.groups) {
+          for (const name of g.products) {
+            const code = (cfg.codeMap && cfg.codeMap[name]) ? cfg.codeMap[name] : name;
+            if (!seen.has(name)) { flat.push({ id: code, name }); seen.add(name); }
+          }
+        }
+        PRODUCT_CATALOG = flat;
+      }
+      // Ocultar metadata (sede, responsable, fecha) y extras
+      const metaBox = document.querySelector('.meta');
+      if (metaBox) metaBox.style.display = 'none';
+      const extra = document.getElementById('form-extra');
+      if (extra) extra.innerHTML = '';
     }
   }
   // Personalización por formulario: INVENTARIO PRODUCTO TERMINADO (alias: registros)
@@ -678,6 +667,11 @@ function main() {
     // Forzar un tipo estándar para el formulario de Solicitudes simple
     if (cfg && cfg.id === 'solicitudes-pedido') {
       metaProbe.tipo = 'SOLICITUD';
+      metaProbe.familia = null;
+    }
+    // Forzar tipo para MERMA
+    if (cfg && cfg.id === 'merma') {
+      metaProbe.tipo = 'MERMA';
       metaProbe.familia = null;
     }
     const signature = buildSubmitSignature(items, metaProbe);
