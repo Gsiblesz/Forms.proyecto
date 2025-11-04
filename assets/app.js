@@ -478,7 +478,12 @@ function main() {
       const metaBox = document.querySelector('.meta');
       if (metaBox) metaBox.style.display = 'none';
       const extra = document.getElementById('form-extra');
-      if (extra) extra.innerHTML = '';
+      if (extra) {
+        extra.innerHTML = '<small class="muted">MERMA aplica solo para la sede <strong>BELLO CAMPO</strong>.</small>';
+      }
+      // Forzar sede fija a BELLO CAMPO
+      const sedeInputFixed = document.getElementById('meta-sede');
+      if (sedeInputFixed) sedeInputFixed.value = 'BELLO CAMPO';
     }
   }
   // Personalización por formulario: INVENTARIO PRODUCTO TERMINADO (alias: registros)
@@ -673,6 +678,7 @@ function main() {
     if (cfg && cfg.id === 'merma') {
       metaProbe.tipo = 'MERMA';
       metaProbe.familia = null;
+      if (!metaProbe.sede) metaProbe.sede = 'BELLO CAMPO';
     }
     const signature = buildSubmitSignature(items, metaProbe);
     const lastSig = JSON.parse(localStorage.getItem(LAST_SUBMIT_KEY) || "null");
