@@ -142,7 +142,8 @@ function buildSubmitSignature(items, meta) {
 
 function createRow(productId = "", quantity = "") {
   const div = document.createElement("div");
-  div.className = "row";
+  // Cuando mostramos familia por fila, la fila usa 4 columnas (producto, familia, cantidad, borrar)
+  div.className = "row" + (SHOW_ROW_FAMILY ? " has-family" : "");
   let optionsHtml = '';
   if (Array.isArray(PRODUCT_GROUPS) && PRODUCT_GROUPS.length) {
     optionsHtml += `<option value="" disabled ${productId ? '' : 'selected'}>Selecciona un producto…</option>`;
@@ -163,7 +164,15 @@ function createRow(productId = "", quantity = "") {
   }
 
   const qtyLabel = QTY_LABEL || 'Cantidad';
-  const famHtml = SHOW_ROW_FAMILY ? `<input class="family" type="text" placeholder="Familia" readonly />` : '';
+  // Familia por fila: como <select> para permitir override manual cuando no se reconoce
+  const famHtml = SHOW_ROW_FAMILY ? `
+      <select class="family" title="Familia">
+        <option value="">Familia…</option>
+        <option value="DONAS">DONAS</option>
+        <option value="HOJALDRE">HOJALDRE</option>
+        <option value="PANADERIA">PANADERIA</option>
+      </select>
+    ` : '';
   div.innerHTML = `
     <select class="product" required>${optionsHtml}</select>
     ${famHtml}
@@ -188,7 +197,17 @@ function createRow(productId = "", quantity = "") {
     if (!famInput) return;
     const val = prodSel?.value || '';
     const name = productDisplayName(val);
-    famInput.value = familyForProduct(name) || '';
+    const detected = familyForProduct(name) || '';
+    if (detected) {
+      famInput.value = detected;
+      famInput.disabled = true; // si se reconoce, bloquear edición
+      famInput.title = `Familia (auto: ${detected})`;
+    } else {
+      // permitir que el usuario seleccione manualmente
+      if (!famInput.value) famInput.value = '';
+      famInput.disabled = false;
+      famInput.title = 'Familia';
+    }
   };
   if (prodSel) {
     prodSel.addEventListener('change', setRowFamily);
@@ -402,12 +421,6 @@ function main() {
     // No usamos 'return' en el nivel superior para evitar errores de sintaxis
   }
   const isAdmin = role === 'admin';
-    const famHtml = SHOW_ROW_FAMILY ? `<select class="family" title="Familia">
-        <option value="">Familia…</option>
-        <option value="DONAS">DONAS</option>
-        <option value="HOJALDRE">HOJALDRE</option>
-        <option value="PANADERIA">PANADERIA</option>
-      </select>` : '';
   if (!Array.isArray(window.FORMS) || window.FORMS.length === 0) {
     // Defer inicialización si aún no cargó forms.js
     setTimeout(main, 120);
