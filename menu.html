@@ -49,6 +49,31 @@
       </div>
 
       <section id="panel-cards" class="grid" role="tabpanel" aria-labelledby="tab-solicitudes" style="display:none"></section>
+
+      <!-- Ajustes de Google Sheets (visible para Administrador) -->
+      <section id="settings" class="settings" style="display:none; margin-top:20px; padding:16px; border:1px solid var(--border); border-radius:12px; background:#0f0f12;">
+        <h3 style="margin:0 0 10px;">Ajustes de Google Sheets</h3>
+        <div style="display:grid; grid-template-columns: repeat(auto-fit, minmax(240px, 1fr)); gap:12px; align-items:end;">
+          <div>
+            <label style="display:block; font-size:12px; color:var(--muted); margin-bottom:6px;">Enviar a Google Sheets</label>
+            <input id="gs-enabled" type="checkbox" checked />
+          </div>
+          <div>
+            <label style="display:block; font-size:12px; color:var(--muted); margin-bottom:6px;">URL del Web App</label>
+            <input id="gs-url" type="text" placeholder="https://script.google.com/.../exec" style="width:100%; padding:10px 12px; border-radius:10px; border:1px solid var(--border); background:#0f1533; color:var(--text);" />
+          </div>
+          <div>
+            <label style="display:block; font-size:12px; color:var(--muted); margin-bottom:6px;">Token (opcional)</label>
+            <input id="gs-token" type="text" placeholder="Pasantias90" style="width:100%; padding:10px 12px; border-radius:10px; border:1px solid var(--border); background:#0f1533; color:var(--text);" />
+          </div>
+        </div>
+        <div style="display:flex; gap:8px; margin-top:12px;">
+          <button id="save-settings" class="btn">Guardar</button>
+          <button id="test-settings" class="btn">Probar</button>
+          <button id="reset-settings" class="btn outline">Restablecer</button>
+          <span id="settings-msg" class="muted" style="margin-left:8px"></span>
+        </div>
+      </section>
     </main>
 
     <div class="credit">Elaborado por el pasante de producción <strong>Gerardo Siblesz</strong></div>
@@ -56,6 +81,7 @@
     <script src="./assets/forms.js"></script>
     <script>
   const ROLE_KEY = 'app_role';
+  const SETTINGS_KEY = 'gs_settings';
 
       function getActiveTab() {
         const u = new URL(window.location.href);
@@ -112,18 +138,21 @@
         const cards = document.getElementById('panel-cards');
         const roleLabel = document.getElementById('role-label');
         const tabs = document.querySelector('.tabs');
+        const settings = document.getElementById('settings');
         if (role) {
           authForm.style.display = 'none';
           authOk.style.display = '';
           roleLabel.textContent = role === 'admin' ? 'Rol: Administrador' : 'Rol: Trabajador';
           cards.style.display = '';
           if (tabs) tabs.style.display = '';
+          if (settings) settings.style.display = (role === 'admin') ? '' : 'none';
           setActiveTab(getActiveTab());
         } else {
           authForm.style.display = '';
           authOk.style.display = 'none';
           cards.style.display = 'none';
           if (tabs) tabs.style.display = 'none';
+          if (settings) settings.style.display = 'none';
         }
       }
 
@@ -156,11 +185,77 @@
           btn.addEventListener('click', () => setActiveTab(btn.dataset.tab));
         });
 
+        // Ajustes (admin)
+        const gsUrlInput = document.getElementById('gs-url');
+        const gsEnabledInput = document.getElementById('gs-enabled');
+        const gsTokenInput = document.getElementById('gs-token');
+        const saveBtn = document.getElementById('save-settings');
+        const testBtn = document.getElementById('test-settings');
+        const resetBtn = document.getElementById('reset-settings');
+        const settingsMsg = document.getElementById('settings-msg');
+
+        function loadSettingsUI() {
+          const s = JSON.parse(localStorage.getItem(SETTINGS_KEY) || '{}');
+          if (gsUrlInput) gsUrlInput.value = s.url || '';
+          if (gsEnabledInput) gsEnabledInput.checked = (s.enabled !== false);
+          if (gsTokenInput) gsTokenInput.value = s.token || '';
+        }
+        function saveSettingsUI() {
+          const s = {
+            url: (gsUrlInput?.value || '').trim(),
+            enabled: !!(gsEnabledInput?.checked),
+            token: (gsTokenInput?.value || '').trim() || undefined,
+          };
+          localStorage.setItem(SETTINGS_KEY, JSON.stringify(s));
+          if (settingsMsg) settingsMsg.textContent = 'Ajustes guardados';
+          setTimeout(()=>{ if (settingsMsg) settingsMsg.textContent = ''; }, 2500);
+        }
+        function resetSettingsUI() {
+          // Valores por defecto del cliente
+          const defaults = {
+            url: 'https://script.google.com/macros/s/AKfycbwld5XjSBk3VBzSbZtpaWPk9MoWkeoRvTjdm0Sk66d6ie-D8ry4vYETZ2tlOth7TFYgag/exec',
+            enabled: true,
+            token: 'Pasantias90',
+          };
+          localStorage.setItem(SETTINGS_KEY, JSON.stringify(defaults));
+          loadSettingsUI();
+          if (settingsMsg) settingsMsg.textContent = 'Ajustes restablecidos';
+          setTimeout(()=>{ if (settingsMsg) settingsMsg.textContent = ''; }, 2500);
+        }
+
+        saveBtn?.addEventListener('click', saveSettingsUI);
+        resetBtn?.addEventListener('click', resetSettingsUI);
+        testBtn?.addEventListener('click', async () => {
+          const url = (gsUrlInput?.value || '').trim();
+          const token = (gsTokenInput?.value || '').trim();
+          if (!url) { settingsMsg.textContent = 'Ingresa la URL'; return; }
+          const probe = {
+            id: 'test-' + Math.random().toString(36).slice(2,8),
+            at: new Date().toISOString(),
+            items: [{ product: 'PING', quantity: 1 }],
+            ...(token ? { token } : {}),
+          };
+          try {
+            const res = await fetch(url, {
+              method: 'POST',
+              headers: { 'Content-Type': 'text/plain;charset=utf-8' },
+              body: JSON.stringify(probe),
+              mode: 'cors',
+            });
+            const text = await res.text();
+            settingsMsg.textContent = `HTTP ${res.status}: ${text.slice(0,120)}...`;
+          } catch (err) {
+            settingsMsg.textContent = String(err);
+          }
+          setTimeout(()=>{ if (settingsMsg) settingsMsg.textContent = ''; }, 4000);
+        });
+
         // Estado inicial
         showRole(localStorage.getItem(ROLE_KEY));
         if (localStorage.getItem(ROLE_KEY)) {
           setActiveTab(getActiveTab());
         }
+        loadSettingsUI();
       });
     </script>
   </body>
