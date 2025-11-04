@@ -336,7 +336,7 @@ window.FORMS = [
   {
     id: "merma",
     title: "MERMA - LA TATA DE LA LIBERTAD",
-    sheetTab: "MERMA",
+    sheetTab: "SOLICITUDES",
     color: "#ffb3b3",
     description: "Registro rápido de merma. Solo producto y cantidad.",
     inheritFrom: "solicitudes"

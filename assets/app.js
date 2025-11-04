@@ -6,6 +6,75 @@ let QTY_LABEL = 'Cantidad'; // texto del label para el campo cantidad en las fil
 let CODE_MAP = {}; // opcional por formulario: { nombreProducto: codigo }
 let UND_MAP = {};  // opcional por formulario: { nombreProducto: 'UND'|'PAQ'|'CAJ'|'KG' }
 
+// Familias auto-detectadas (DONAS, HOJALDRE, PANADERIA)
+const FAMILY_SETS = { DONAS: new Set(), HOJALDRE: new Set(), PANADERIA: new Set() };
+let FAMILIES_LOADED = false;
+let SHOW_ROW_FAMILY = false; // mostrar columna de familia por fila (solo solicitudes-pedido)
+
+async function loadFamilySets() {
+  try {
+    const paths = [
+      './assets/DONAS.tsv',
+      './assets/HOJALDRE.tsv',
+      './assets/PANADERIA.tsv',
+    ];
+    const texts = await Promise.all(paths.map(p => fetch(p).then(r => r.ok ? r.text() : '')));
+    const [donas, hojaldre, panaderia] = texts;
+    function fillSet(tsv, set) {
+      if (!tsv) return;
+      tsv.split(/\r?\n/).forEach(line => {
+        if (!line.trim()) return;
+        const parts = line.split('\t');
+        const name = parts[3] || '';
+        if (name) set.add(name.trim());
+      });
+    }
+    fillSet(donas, FAMILY_SETS.DONAS);
+    fillSet(hojaldre, FAMILY_SETS.HOJALDRE);
+    fillSet(panaderia, FAMILY_SETS.PANADERIA);
+    FAMILIES_LOADED = true;
+  } catch (e) {
+    console.warn('No se pudieron cargar las familias desde TSV:', e);
+    FAMILIES_LOADED = false; // seguimos, la UI funciona sin familia
+  }
+}
+
+function familyForProduct(name) {
+  const n = String(name || '').trim();
+  if (!n) return '';
+  if (FAMILY_SETS.DONAS.has(n)) return 'DONAS';
+  if (FAMILY_SETS.HOJALDRE.has(n)) return 'HOJALDRE';
+  if (FAMILY_SETS.PANADERIA.has(n)) return 'PANADERIA';
+  return '';
+}
+
+function productDisplayName(val) {
+  // Si val coincide con un id del catálogo, devuelve su nombre; si no, asume que ya es el nombre
+  const found = PRODUCT_CATALOG.find(p => p.id === val);
+  return found?.name || String(val || '');
+}
+
+function recomputeFamiliaUI() {
+  // Solo muestra en Solicitudes simple (solicitudes-pedido)
+  const famInput = document.getElementById('meta-familia');
+  if (!famInput) return;
+  const items = readForm();
+  const fams = new Set();
+  for (const it of items) {
+    if (it.product) {
+      const f = familyForProduct(it.product);
+      if (f) fams.add(f);
+    }
+  }
+  if (fams.size === 0) {
+    famInput.value = '';
+  } else if (fams.size === 1) {
+    famInput.value = Array.from(fams)[0];
+  } else {
+    famInput.value = 'MIXTO';
+  }
+}
+
 // Anti-duplicado en cliente: ventana de deduplicación e intervalo de "enfriamiento"
 const LAST_SUBMIT_KEY = "last_submit_signature"; // { hash: string, at: number }
 const DUPLICATE_WINDOW_MS = 20_000; // bloquear reenvíos idénticos dentro de 20s
@@ -15,7 +84,7 @@ const SUBMIT_COOLDOWN_MS = 4_000;  // mantener botón deshabilitado X segundos t
 const ENABLE_LOCAL_SAVE = false;
 const STORAGE_KEY = "productos_registrados";
 const SETTINGS_KEY = "gs_settings"; // { url: string, enabled: boolean, token?: string }
-const DEFAULT_GS_URL = "https://script.google.com/macros/s/AKfycby9Iw50bCcbINg29DWhMiUxnHkw2VoX68A1eq0ZKAF46lrNLZl-shsOucAqKODULxBSSQ/exec";
+const DEFAULT_GS_URL = "https://script.google.com/macros/s/AKfycbxePFe98hFYAaNWdZOjOKcsLwgBNoiEIdYcV62-C7kxXHFALBHREFyV0uSSYD11llZfjQ/exec";
 const DEFAULT_GS_TOKEN = "Pasantias90";
 const ROLE_KEY = "app_role"; // 'worker' | 'admin'
 
@@ -94,8 +163,10 @@ function createRow(productId = "", quantity = "") {
   }
 
   const qtyLabel = QTY_LABEL || 'Cantidad';
+  const famHtml = SHOW_ROW_FAMILY ? `<input class="family" type="text" placeholder="Familia" readonly />` : '';
   div.innerHTML = `
     <select class="product" required>${optionsHtml}</select>
+    ${famHtml}
     <div class="qty-cell">
       <label class="row-label">${qtyLabel}</label>
       <input type="number" class="quantity" min="0" step="1" placeholder="0" value="${quantity}" required />
@@ -106,7 +177,24 @@ function createRow(productId = "", quantity = "") {
   div.querySelector(".remove-btn").addEventListener("click", () => {
     div.remove();
     updateResult();
+    // actualizar familia automática si aplica
+    recomputeFamiliaUI();
   });
+
+  // Recalcular familia por fila cuando cambia el producto seleccionado
+  const prodSel = div.querySelector('.product');
+  const famInput = div.querySelector('.family');
+  const setRowFamily = () => {
+    if (!famInput) return;
+    const val = prodSel?.value || '';
+    const name = productDisplayName(val);
+    famInput.value = familyForProduct(name) || '';
+  };
+  if (prodSel) {
+    prodSel.addEventListener('change', setRowFamily);
+    // Inicializar en caso de que productId venga prefijado
+    setRowFamily();
+  }
 
   return div;
 }
@@ -117,7 +205,9 @@ function readForm() {
     const product = row.querySelector(".product").value;
     const qtyStr = row.querySelector(".quantity").value.trim();
     const quantity = qtyStr === "" ? NaN : Number(qtyStr);
-    return { product, quantity };
+    const famSel = row.querySelector('.family');
+    const family = famSel ? String(famSel.value || '').trim().toUpperCase() : '';
+    return { product, quantity, family };
   });
   return items;
 }
@@ -312,7 +402,12 @@ function main() {
     // No usamos 'return' en el nivel superior para evitar errores de sintaxis
   }
   const isAdmin = role === 'admin';
-  // Esperar a que forms.js cargue si aún no está disponible
+    const famHtml = SHOW_ROW_FAMILY ? `<select class="family" title="Familia">
+        <option value="">Familia…</option>
+        <option value="DONAS">DONAS</option>
+        <option value="HOJALDRE">HOJALDRE</option>
+        <option value="PANADERIA">PANADERIA</option>
+      </select>` : '';
   if (!Array.isArray(window.FORMS) || window.FORMS.length === 0) {
     // Defer inicialización si aún no cargó forms.js
     setTimeout(main, 120);
@@ -419,6 +514,9 @@ function main() {
     // Personalización por formulario: Solicitudes simple (fecha, sede, responsable, productos y cantidades)
     if (cfg.id === 'solicitudes-pedido') {
       QTY_LABEL = 'CANTIDAD SOLICITADA';
+      // Mostrar columna de familia por fila y cargar sets
+      SHOW_ROW_FAMILY = true;
+      loadFamilySets().catch(() => {});
       // Reutiliza grupos/mapas ya heredados; construir catálogo plano desde grupos si aplica
       if (Array.isArray(cfg.groups) && cfg.groups.length) {
         PRODUCT_GROUPS = cfg.groups;
@@ -478,7 +576,12 @@ function main() {
       const metaBox = document.querySelector('.meta');
       if (metaBox) metaBox.style.display = 'none';
       const extra = document.getElementById('form-extra');
-      if (extra) extra.innerHTML = '';
+      if (extra) {
+        extra.innerHTML = '<small class="muted">MERMA aplica solo para la sede <strong>BELLO CAMPO</strong>.</small>';
+      }
+      // Forzar sede fija a BELLO CAMPO
+      const sedeInputFixed = document.getElementById('meta-sede');
+      if (sedeInputFixed) sedeInputFixed.value = 'BELLO CAMPO';
     }
   }
   // Personalización por formulario: INVENTARIO PRODUCTO TERMINADO (alias: registros)
@@ -664,15 +767,21 @@ function main() {
       tipo: document.getElementById('meta-tipo')?.value || null,
       familia: (document.getElementById('meta-tipo')?.value === 'MERMA') ? null : (document.getElementById('meta-familia')?.value || null),
     };
+    // Default para Registros LA TATA: ENTREGADO (sin UI de tipo)
+    if (cfg && (cfg.id === 'tata-libertad' || cfg.id === 'solicitudes')) {
+      if (!metaProbe.tipo) metaProbe.tipo = 'ENTREGADO';
+    }
     // Forzar un tipo estándar para el formulario de Solicitudes simple
     if (cfg && cfg.id === 'solicitudes-pedido') {
       metaProbe.tipo = 'SOLICITUD';
+      // En Solicitudes cada item define su familia; no enviamos familia a nivel meta
       metaProbe.familia = null;
     }
     // Forzar tipo para MERMA
     if (cfg && cfg.id === 'merma') {
       metaProbe.tipo = 'MERMA';
       metaProbe.familia = null;
+      if (!metaProbe.sede) metaProbe.sede = 'BELLO CAMPO';
     }
     const signature = buildSubmitSignature(items, metaProbe);
     const lastSig = JSON.parse(localStorage.getItem(LAST_SUBMIT_KEY) || "null");
@@ -695,7 +804,18 @@ function main() {
     let sendResult = null;
     try {
       // enriquecer con código y unidad por producto
-      const itemsWithCode = items.map(it => ({ ...it, code: codeForProduct(it.product), und: undForProduct(it.product) }));
+      const itemsWithCode = items.map(it => {
+        const name = productDisplayName(it.product);
+        const detectedFam = String(familyForProduct(name) || '').toUpperCase();
+        const uiFam = String(it.family || '').toUpperCase();
+        const familia = detectedFam || uiFam || undefined;
+        return {
+          ...it,
+          code: codeForProduct(it.product),
+          und: undForProduct(it.product),
+          familia,
+        };
+      });
       const entry = save(itemsWithCode, meta);
       let msg = ENABLE_LOCAL_SAVE
         ? `Guardado ${new Date(entry.at).toLocaleString()} (${entry.items.length} item/s)`
@@ -721,6 +841,8 @@ function main() {
       document.getElementById("meta-sede").value = "";
       document.getElementById("meta-resp").value = "";
       document.getElementById("meta-date").value = "";
+      // recalcular familia automática (queda en blanco hasta nueva selección)
+      recomputeFamiliaUI();
     } finally {
       isSubmitting = false;
       if (submitBtn) {
