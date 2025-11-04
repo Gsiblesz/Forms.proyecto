@@ -669,6 +669,10 @@ function main() {
       tipo: document.getElementById('meta-tipo')?.value || null,
       familia: (document.getElementById('meta-tipo')?.value === 'MERMA') ? null : (document.getElementById('meta-familia')?.value || null),
     };
+    // Default para Registros LA TATA: ENTREGADO (sin UI de tipo)
+    if (cfg && (cfg.id === 'tata-libertad' || cfg.id === 'solicitudes')) {
+      if (!metaProbe.tipo) metaProbe.tipo = 'ENTREGADO';
+    }
     // Forzar un tipo estándar para el formulario de Solicitudes simple
     if (cfg && cfg.id === 'solicitudes-pedido') {
       metaProbe.tipo = 'SOLICITUD';
