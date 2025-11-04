@@ -229,9 +229,20 @@
           const url = (gsUrlInput?.value || '').trim();
           const token = (gsTokenInput?.value || '').trim();
           if (!url) { settingsMsg.textContent = 'Ingresa la URL'; return; }
+          // Enviar un payload válido para el Web App: incluye meta con fecha/sede/tipo
+          const today = new Date();
+          const yyyy = today.getFullYear();
+          const mm = String(today.getMonth()+1).padStart(2,'0');
+          const dd = String(today.getDate()).padStart(2,'0');
           const probe = {
             id: 'test-' + Math.random().toString(36).slice(2,8),
             at: new Date().toISOString(),
+            meta: {
+              fecha: `${yyyy}-${mm}-${dd}`,
+              sede: 'TEST',
+              responsable: 'AJUSTES',
+              tipo: 'SOLICITUD',
+            },
             items: [{ product: 'PING', quantity: 1 }],
             ...(token ? { token } : {}),
           };
