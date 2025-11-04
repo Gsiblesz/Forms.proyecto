@@ -331,6 +331,16 @@ window.FORMS = [
     description: "Formulario de Operaciones de Manufactura. Solicitud de producto terminado a tiendas, sedes y ventas al mayor.",
     inheritFrom: "solicitudes"
   },
+  // Formulario de MERMA (solo producto y cantidad)
+  // Reutiliza el catálogo y mapas de LA TATA mediante inheritFrom
+  {
+    id: "merma",
+    title: "MERMA - LA TATA DE LA LIBERTAD",
+    sheetTab: "MERMA",
+    color: "#ffb3b3",
+    description: "Registro rápido de merma. Solo producto y cantidad.",
+    inheritFrom: "solicitudes"
+  },
   {
     id: "registros",
     title: "Registros - INVENTARIO PRODUCTO TERMINADO",

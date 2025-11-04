@@ -26,8 +26,9 @@
     <main class="menu" style="margin-top:80px">
       <h1>Elige una pestaña</h1>
       <div class="tabs" role="tablist" aria-label="Tipos de formularios" style="display:none">
-        <button class="tab" role="tab" id="tab-solicitudes" data-tab="solicitudes" aria-controls="panel-cards">Solicitudes</button>
-        <button class="tab" role="tab" id="tab-registros" data-tab="registros" aria-controls="panel-cards">Registros</button>
+        <button class="tab" role="tab" id="tab-solicitudes" data-tab="solicitudes" aria-controls="panel-cards">SOLICITUDES</button>
+        <button class="tab" role="tab" id="tab-registros" data-tab="registros" aria-controls="panel-cards">REGISTROS</button>
+        <button class="tab" role="tab" id="tab-merma" data-tab="merma" aria-controls="panel-cards">MERMA</button>
       </div>
 
       <div id="auth" style="margin:16px 0; padding:12px; border:1px solid var(--border); border-radius:12px; background:#0f0f12;">
@@ -81,7 +82,14 @@
         if (!cont) return;
         cont.innerHTML = '';
   // Mostrar formularios por pestaña
-  const targetIds = tab === 'registros' ? ['solicitudes','registros'] : ['solicitudes-pedido'];
+  let targetIds;
+  if (tab === 'registros') {
+    targetIds = ['solicitudes','registros'];
+  } else if (tab === 'merma') {
+    targetIds = ['merma'];
+  } else {
+    targetIds = ['solicitudes-pedido'];
+  }
         const forms = (window.FORMS || []).filter(f => targetIds.includes(f.id));
         forms.forEach(form => {
           const url = new URL('./index.html', location.href);
