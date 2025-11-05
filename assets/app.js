@@ -113,7 +113,7 @@ const SUBMIT_COOLDOWN_MS = 4_000;  // mantener botón deshabilitado X segundos t
 const ENABLE_LOCAL_SAVE = false;
 const STORAGE_KEY = "productos_registrados";
 const SETTINGS_KEY = "gs_settings"; // { url: string, enabled: boolean, token?: string }
-const DEFAULT_GS_URL = "https://script.google.com/macros/s/AKfycbwld5XjSBk3VBzSbZtpaWPk9MoWkeoRvTjdm0Sk66d6ie-D8ry4vYETZ2tlOth7TFYgag/exec";
+const DEFAULT_GS_URL = "https://script.google.com/macros/s/AKfycbwCeVnfRb_LgX59kwCvaCbQR0eeRECxplyaBADs3dgdN-a_f_yb0ebktm7lPrc7AiSCMg/exec";
 const DEFAULT_GS_TOKEN = "Pasantias90";
 const ROLE_KEY = "app_role"; // 'worker' | 'admin'
 
@@ -554,9 +554,33 @@ function main() {
       // Cambiar etiqueta de responsable a "Entregado por"
       const lbl = document.getElementById('label-resp');
       if (lbl) lbl.textContent = 'Entregado por';
-      // Ya no mostramos controles de TIPO/FAMILIA en Registros LA TATA
+      // Controles extra mínimos: permitir marcar "registro sin solicitud" y un campo opcional de referencia
       const extra = document.getElementById('form-extra');
-      if (extra) extra.innerHTML = '';
+      if (extra) {
+        extra.innerHTML = `
+          <div class="meta" style="gap:12px;align-items:end">
+            <div>
+              <label><input type="checkbox" id="meta-sin-solicitud"> Registro sin solicitud</label>
+            </div>
+            <div id="sol-id-wrap">
+              <label>N° Solicitud (opcional)</label>
+              <input type="text" id="meta-sol-id" placeholder="Ej: SOL-1234" />
+            </div>
+          </div>
+          <small class="muted">Si marcas "Registro sin solicitud" y dejas vacío el número, se generará uno automáticamente.</small>
+        `;
+        // Habilitar/deshabilitar campo según el checkbox
+        const chk = document.getElementById('meta-sin-solicitud');
+        const inp = document.getElementById('meta-sol-id');
+        const toggle = () => {
+          if (!chk || !inp) return;
+          inp.disabled = chk.checked && !inp.value;
+          inp.placeholder = chk.checked ? 'Se generará automáticamente' : 'Ej: SOL-1234';
+        };
+        chk?.addEventListener('change', toggle);
+        inp?.addEventListener('input', toggle);
+        toggle();
+      }
     }
     // Personalización por formulario: Solicitudes simple (fecha, sede, responsable, productos y cantidades)
     if (cfg.id === 'solicitudes-pedido') {
@@ -821,6 +845,25 @@ function main() {
     // Default para Registros LA TATA: ENTREGADO (sin UI de tipo)
     if (cfg && (cfg.id === 'tata-libertad' || cfg.id === 'solicitudes')) {
       if (!metaProbe.tipo) metaProbe.tipo = 'ENTREGADO';
+      // Gestión de solicitud: permitir "sin solicitud" y generar identificador
+      const solIdEl = document.getElementById('meta-sol-id');
+      const sinSolEl = document.getElementById('meta-sin-solicitud');
+      let solId = (solIdEl?.value || '').trim();
+      let sinSol = !!sinSolEl?.checked;
+      const selectedDate = document.getElementById("meta-date")?.value || '';
+      const ymd = (selectedDate || new Date().toISOString().slice(0,10)).replace(/-/g,'');
+      if (!solId && sinSol) {
+        const rand = Math.random().toString(36).slice(2,6).toUpperCase();
+        solId = `SIN-SOL-${ymd}-${rand}`;
+      }
+      if (!solId) {
+        // Si no hay número y tampoco marcaron la casilla, considerar igual como sin solicitud
+        sinSol = true;
+        const rand = Math.random().toString(36).slice(2,6).toUpperCase();
+        solId = `SIN-SOL-${ymd}-${rand}`;
+      }
+      metaProbe.solicitudId = solId;
+      metaProbe.sinSolicitud = sinSol;
     }
     // Forzar un tipo estándar para el formulario de Solicitudes simple
     if (cfg && cfg.id === 'solicitudes-pedido') {
@@ -920,6 +963,8 @@ function main() {
               fecha: entry.meta?.fecha || null,
               fechaTxt: entry.meta?.fechaTxt || null,
               tipo: entry.meta?.tipo || null,
+              solicitudId: entry.meta?.solicitudId || null,
+              sinSolicitud: entry.meta?.sinSolicitud || null,
               sheet: entry.meta?.sheet || null,
               formId: entry.meta?.formId || null
             }
