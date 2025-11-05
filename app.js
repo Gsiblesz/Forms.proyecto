@@ -818,14 +818,18 @@ function main() {
     try {
       // enriquecer con código y unidad por producto
       const itemsWithCode = items.map(it => {
+        // Normalizar siempre el nombre legible del producto, sin importar si el <select> guarda id o nombre
         const name = productDisplayName(it.product);
         const detectedFam = String(familyForProduct(name) || '').toUpperCase();
         const uiFam = String(it.family || '').toUpperCase();
         const familia = detectedFam || uiFam || undefined;
         return {
           ...it,
-          code: codeForProduct(it.product),
-          und: undForProduct(it.product),
+          // Aseguramos que 'product' sea el NOMBRE para el backend (Sheets) y humanos
+          product: name,
+          // Calcular código y unidad a partir del nombre normalizado
+          code: codeForProduct(name),
+          und: undForProduct(name),
           familia,
         };
       });
