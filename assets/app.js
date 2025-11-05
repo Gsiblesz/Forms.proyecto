@@ -64,6 +64,25 @@ function productDisplayName(val) {
   return found?.name || String(val || '');
 }
 
+function isCodeLike(v) {
+  const s = String(v || '').trim();
+  // PTSU0065, ST..., PT..., u otros códigos alfanuméricos en mayúsculas
+  return /^[A-Z]{2,}[A-Z0-9]*\d{2,}$/.test(s);
+}
+
+function nameForCode(code) {
+  const c = String(code || '').trim();
+  if (!c) return '';
+  // 1) Invertir CODE_MAP si existe
+  for (const [name, k] of Object.entries(CODE_MAP || {})) {
+    if (k === c) return name;
+  }
+  // 2) Buscar en el catálogo si el id es un código
+  const found = PRODUCT_CATALOG.find(p => p.id === c);
+  if (found && found.name) return found.name;
+  return '';
+}
+
 function recomputeFamiliaUI() {
   // Solo muestra en Solicitudes simple (solicitudes-pedido)
   const famInput = document.getElementById('meta-familia');
@@ -795,6 +814,10 @@ function main() {
       tipo: document.getElementById('meta-tipo')?.value || null,
       familia: (document.getElementById('meta-tipo')?.value === 'MERMA') ? null : (document.getElementById('meta-familia')?.value || null),
     };
+    // Enviar también la fecha como texto plano para que el backend NO la reprocese con zonas horarias
+    if (metaProbe && metaProbe.fecha) {
+      metaProbe.fechaTxt = metaProbe.fecha;
+    }
     // Default para Registros LA TATA: ENTREGADO (sin UI de tipo)
     if (cfg && (cfg.id === 'tata-libertad' || cfg.id === 'solicitudes')) {
       if (!metaProbe.tipo) metaProbe.tipo = 'ENTREGADO';
@@ -833,20 +856,29 @@ function main() {
     try {
       // enriquecer con código y unidad por producto
       const itemsWithCode = items.map(it => {
-        // Normalizar siempre el nombre legible del producto, sin importar si el <select> guarda id o nombre
-        const name = productDisplayName(it.product);
+        const raw = String(it.product || '').trim();
+        // Intentar obtener nombre por id -> nombre
+        let name = productDisplayName(raw);
+        // Si no resolvió (o devolvió el mismo código), y parece un código, intentar invertir
+        if (!name || isCodeLike(raw) && name === raw) {
+          const fromCode = nameForCode(raw);
+          if (fromCode) name = fromCode;
+        }
+        // Si aún no hay nombre y el raw parece ser código, mantén el código como code
+        let code = codeForProduct(name);
+        if ((!code || code === name) && isCodeLike(raw)) {
+          code = raw; // usar el valor elegido como código
+        }
         const detectedFam = String(familyForProduct(name) || '').toUpperCase();
         const uiFam = String(it.family || '').toUpperCase();
         const familia = detectedFam || uiFam || undefined;
         return {
-          ...it,
-          // Aseguramos que 'product' sea el NOMBRE para el backend (Sheets) y humanos
-          product: name,
-          // Redundancia útil para scripts antiguos que leen 'name'
-          name: name,
-          // Calcular código y unidad a partir del nombre normalizado
-          code: codeForProduct(name),
-          und: undForProduct(name),
+          quantity: it.quantity,
+          family: it.family,
+          // Canon: 'product' siempre es el NOMBRE legible
+          product: name || raw,
+          code,
+          und: undForProduct(name || raw),
           familia,
         };
       });
@@ -875,12 +907,22 @@ function main() {
         const first = entry.items && entry.items[0] ? entry.items[0] : null;
         const dbg = first ? `\n<pre style="white-space:pre-wrap;max-height:200px;overflow:auto;background:#0d0f1a;padding:8px;border-radius:8px;border:1px solid #1c2549">${
           JSON.stringify({
-            product:first.product,
-            name:first.name,
-            code:first.code,
-            und:first.und,
-            qty:first.quantity,
-            familia:first.familia
+            item:{
+              product:first.product,
+              code:first.code,
+              und:first.und,
+              qty:first.quantity,
+              familia:first.familia
+            },
+            meta:{
+              sede: entry.meta?.sede || null,
+              responsable: entry.meta?.responsable || null,
+              fecha: entry.meta?.fecha || null,
+              fechaTxt: entry.meta?.fechaTxt || null,
+              tipo: entry.meta?.tipo || null,
+              sheet: entry.meta?.sheet || null,
+              formId: entry.meta?.formId || null
+            }
           }, null, 2)
         }</pre>` : '';
         // incluir eco del backend si vino
