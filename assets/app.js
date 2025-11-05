@@ -83,6 +83,95 @@ function nameForCode(code) {
   return '';
 }
 
+// Valor que debe setearse en el <select> para un nombre dado
+function selectValueForName(name) {
+  const n = String(name || '').trim();
+  if (!n) return '';
+  if (Array.isArray(PRODUCT_GROUPS) && PRODUCT_GROUPS.length) {
+    // En grupos, el value de las <option> es el nombre
+    return n;
+  }
+  const found = PRODUCT_CATALOG.find(p => p.name === n);
+  return found ? found.id : n;
+}
+
+// Construye un índice de búsqueda {id,name,code,value}
+function buildSearchIndex() {
+  const list = [];
+  if (Array.isArray(PRODUCT_GROUPS) && PRODUCT_GROUPS.length) {
+    for (const g of PRODUCT_GROUPS) {
+      for (const name of g.products) {
+        const code = CODE_MAP?.[name] || (PRODUCT_CATALOG.find(p => p.name === name)?.id) || '';
+        list.push({ id: code || name, name, code, value: selectValueForName(name) });
+      }
+    }
+    return list;
+  }
+  for (const p of PRODUCT_CATALOG) {
+    list.push({ id: p.id, name: p.name, code: (/^[A-Z0-9-]+$/.test(p.id) ? p.id : (CODE_MAP?.[p.name] || '')), value: p.id });
+  }
+  return list;
+}
+
+// Abre modal para buscar productos y asigna al <select> destino
+function openProductPicker(targetSelect) {
+  const data = buildSearchIndex();
+  const overlay = document.createElement('div');
+  overlay.className = 'modal-overlay';
+  overlay.innerHTML = `
+    <div class="modal" role="dialog" aria-modal="true">
+      <h3>Buscar producto</h3>
+      <input class="searchbox" type="text" placeholder="Escribe para filtrar…" />
+      <div class="list"></div>
+    </div>`;
+  document.body.appendChild(overlay);
+  const input = overlay.querySelector('.searchbox');
+  const list = overlay.querySelector('.list');
+  let filtered = data.slice(0);
+  let active = 0;
+  const render = () => {
+    list.innerHTML = '';
+    filtered.forEach((it, i) => {
+      const div = document.createElement('div');
+      div.className = 'item' + (i === active ? ' active' : '');
+      div.innerHTML = `<div class="name">${it.name}</div><div class="code">${it.code || ''}</div>`;
+      div.addEventListener('click', () => {
+        targetSelect.value = it.value;
+        targetSelect.dispatchEvent(new Event('change'));
+        const row = targetSelect.closest('.row');
+        row?.querySelector('.quantity')?.focus();
+        document.body.removeChild(overlay);
+      });
+      list.appendChild(div);
+    });
+  };
+  const applyFilter = () => {
+    const q = String(input.value || '').toLowerCase().trim();
+    if (!q) { filtered = data.slice(0, 300); active = 0; return render(); }
+    filtered = data.filter(it => it.name.toLowerCase().includes(q) || String(it.code||'').toLowerCase().includes(q)).slice(0, 300);
+    active = 0; render();
+  };
+  overlay.addEventListener('click', (e) => { if (e.target === overlay) document.body.removeChild(overlay); });
+  input.addEventListener('input', applyFilter);
+  input.addEventListener('keydown', (e) => {
+    if (e.key === 'Escape') { document.body.removeChild(overlay); }
+    if (e.key === 'ArrowDown') { e.preventDefault(); active = Math.min(active + 1, filtered.length - 1); render(); }
+    if (e.key === 'ArrowUp') { e.preventDefault(); active = Math.max(active - 1, 0); render(); }
+    if (e.key === 'Enter') {
+      const it = filtered[active];
+      if (it) {
+        targetSelect.value = it.value;
+        targetSelect.dispatchEvent(new Event('change'));
+        const row = targetSelect.closest('.row');
+        row?.querySelector('.quantity')?.focus();
+        document.body.removeChild(overlay);
+      }
+    }
+  });
+  applyFilter();
+  setTimeout(() => input.focus(), 0);
+}
+
 function recomputeFamiliaUI() {
   // Solo muestra en Solicitudes simple (solicitudes-pedido)
   const famInput = document.getElementById('meta-familia');
@@ -202,15 +291,31 @@ function createRow(productId = "", quantity = "") {
         <option value="PANADERIA">PANADERIA</option>
       </select>
     ` : '';
-  div.innerHTML = `
-    <select class="product" required>${optionsHtml}</select>
-    ${famHtml}
-    <div class="qty-cell">
-      <label class="row-label">${qtyLabel}</label>
-      <input type="number" class="quantity" min="0" step="1" placeholder="0" value="${quantity}" required />
-    </div>
-    <button type="button" class="remove-btn" title="Eliminar fila">✕</button>
-  `;
+  const searchHtml = `<button type="button" class="search-btn" title="Buscar producto">🔎</button>`;
+  if (SHOW_ROW_FAMILY) {
+    // Orden: producto | familia | buscar | cantidad | borrar
+    div.innerHTML = `
+      <select class="product" required>${optionsHtml}</select>
+      ${famHtml}
+      ${searchHtml}
+      <div class="qty-cell">
+        <label class="row-label">${qtyLabel}</label>
+        <input type="number" class="quantity" min="0" step="1" placeholder="0" value="${quantity}" required />
+      </div>
+      <button type="button" class="remove-btn" title="Eliminar fila">✕</button>
+    `;
+  } else {
+    // Orden: producto | buscar | cantidad | borrar
+    div.innerHTML = `
+      <select class="product" required>${optionsHtml}</select>
+      ${searchHtml}
+      <div class="qty-cell">
+        <label class="row-label">${qtyLabel}</label>
+        <input type="number" class="quantity" min="0" step="1" placeholder="0" value="${quantity}" required />
+      </div>
+      <button type="button" class="remove-btn" title="Eliminar fila">✕</button>
+    `;
+  }
 
   div.querySelector(".remove-btn").addEventListener("click", () => {
     div.remove();
@@ -222,6 +327,7 @@ function createRow(productId = "", quantity = "") {
   // Recalcular familia por fila cuando cambia el producto seleccionado
   const prodSel = div.querySelector('.product');
   const famInput = div.querySelector('.family');
+  const searchBtn = div.querySelector('.search-btn');
   const setRowFamily = () => {
     if (!famInput) return;
     const val = prodSel?.value || '';
@@ -242,6 +348,9 @@ function createRow(productId = "", quantity = "") {
     prodSel.addEventListener('change', setRowFamily);
     // Inicializar en caso de que productId venga prefijado
     setRowFamily();
+  }
+  if (searchBtn && prodSel) {
+    searchBtn.addEventListener('click', () => openProductPicker(prodSel));
   }
 
   return div;
