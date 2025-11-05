@@ -11,6 +11,16 @@ const FAMILY_SETS = { DONAS: new Set(), HOJALDRE: new Set(), PANADERIA: new Set(
 let FAMILIES_LOADED = false;
 let SHOW_ROW_FAMILY = false; // mostrar columna de familia por fila (solo solicitudes-pedido)
 
+// Modo debug: habilita logs detallados si ?debug=1 o localStorage.debug === '1'
+function isDebug() {
+  try {
+    const u = new URL(window.location.href);
+    if (u.searchParams.get('debug') === '1') return true;
+  } catch {}
+  try { if (localStorage.getItem('debug') === '1') return true; } catch {}
+  return false;
+}
+
 async function loadFamilySets() {
   try {
     const paths = [
@@ -269,7 +279,12 @@ async function maybeSendToSheets(entry) {
   if (!settings.enabled || !settings.url) return { sent: false };
   try {
     // Enviar tal cual (items: [{product, quantity}])
-    const payloadObj = settings.token ? { ...entry, token: settings.token } : entry;
+    const payloadObj = (() => {
+      const base = { ...entry };
+      if (settings.token) base.token = settings.token;
+      if (isDebug()) base.debug = true; // pedir eco/idx al backend cuando debug
+      return base;
+    })();
     const payload = JSON.stringify(payloadObj);
     // Intento 0: proxy en Vercel para lectura de respuesta y ocultar token del cliente
     const canUseProxy = (() => {
@@ -818,22 +833,31 @@ function main() {
     try {
       // enriquecer con código y unidad por producto
       const itemsWithCode = items.map(it => {
+        // Normalizar siempre el nombre legible del producto, sin importar si el <select> guarda id o nombre
         const name = productDisplayName(it.product);
         const detectedFam = String(familyForProduct(name) || '').toUpperCase();
         const uiFam = String(it.family || '').toUpperCase();
         const familia = detectedFam || uiFam || undefined;
         return {
           ...it,
-          code: codeForProduct(it.product),
-          und: undForProduct(it.product),
+          // Aseguramos que 'product' sea el NOMBRE para el backend (Sheets) y humanos
+          product: name,
+          // Redundancia útil para scripts antiguos que leen 'name'
+          name: name,
+          // Calcular código y unidad a partir del nombre normalizado
+          code: codeForProduct(name),
+          und: undForProduct(name),
           familia,
         };
       });
       const entry = save(itemsWithCode, meta);
+      if (isDebug()) {
+        try { console.debug('[DEBUG] entry to send', entry); } catch {}
+      }
       let msg = ENABLE_LOCAL_SAVE
         ? `Guardado ${new Date(entry.at).toLocaleString()} (${entry.items.length} item/s)`
         : `Listo (${entry.items.length} item/s)`;
-      const send = await maybeSendToSheets(entry);
+  const send = await maybeSendToSheets(entry);
       sendResult = send;
       if (send.sent) {
         // Registrar firma para bloquear reintentos idénticos por unos segundos
@@ -846,7 +870,28 @@ function main() {
       } else if (send.error) {
         msg += ` — no se pudo enviar a Sheets (${send.error})`;
       }
-      updateResult(`<span style="color:#79ffa7">${msg}</span>`);
+      let extra = '';
+      if (isDebug()) {
+        const first = entry.items && entry.items[0] ? entry.items[0] : null;
+        const dbg = first ? `\n<pre style="white-space:pre-wrap;max-height:200px;overflow:auto;background:#0d0f1a;padding:8px;border-radius:8px;border:1px solid #1c2549">${
+          JSON.stringify({
+            product:first.product,
+            name:first.name,
+            code:first.code,
+            und:first.und,
+            qty:first.quantity,
+            familia:first.familia
+          }, null, 2)
+        }</pre>` : '';
+        // incluir eco del backend si vino
+        const echo = sendResult && sendResult.data && (sendResult.data.firstItem || sendResult.data.idx)
+          ? `\n<pre style="white-space:pre-wrap;max-height:200px;overflow:auto;background:#0d0f1a;padding:8px;border-radius:8px;border:1px solid #1c2549">${
+            JSON.stringify({ backendFirstItem: sendResult.data.firstItem, backendIdx: sendResult.data.idx }, null, 2)
+          }</pre>`
+          : '';
+        extra = dbg + echo;
+      }
+      updateResult(`<span style="color:#79ffa7">${msg}</span>${extra}`);
       // Reset: dejar una sola fila vacía
       rowsEl.innerHTML = "";
       rowsEl.appendChild(createRow());
@@ -952,9 +997,12 @@ function main() {
       }
     });
   } else {
-    // Ensure default settings are applied for non-admin users
-    const preset = { url: DEFAULT_GS_URL, enabled: true, token: DEFAULT_GS_TOKEN };
-    localStorage.setItem(SETTINGS_KEY, JSON.stringify(preset));
+    // Solo inicializar por defecto si no hay ajustes previos; no sobrescribir lo que se configuró en el menú
+    const existing = localStorage.getItem(SETTINGS_KEY);
+    if (!existing) {
+      const preset = { url: DEFAULT_GS_URL, enabled: true, token: DEFAULT_GS_TOKEN };
+      localStorage.setItem(SETTINGS_KEY, JSON.stringify(preset));
+    }
   }
 
   updateResult();
