@@ -11,6 +11,16 @@ const FAMILY_SETS = { DONAS: new Set(), HOJALDRE: new Set(), PANADERIA: new Set(
 let FAMILIES_LOADED = false;
 let SHOW_ROW_FAMILY = false; // mostrar columna de familia por fila (solo solicitudes-pedido)
 
+// Modo debug: habilita logs detallados si ?debug=1 o localStorage.debug === '1'
+function isDebug() {
+  try {
+    const u = new URL(window.location.href);
+    if (u.searchParams.get('debug') === '1') return true;
+  } catch {}
+  try { if (localStorage.getItem('debug') === '1') return true; } catch {}
+  return false;
+}
+
 async function loadFamilySets() {
   try {
     const paths = [
@@ -827,6 +837,8 @@ function main() {
           ...it,
           // Aseguramos que 'product' sea el NOMBRE para el backend (Sheets) y humanos
           product: name,
+          // Redundancia útil para scripts antiguos que leen 'name'
+          name: name,
           // Calcular código y unidad a partir del nombre normalizado
           code: codeForProduct(name),
           und: undForProduct(name),
@@ -834,10 +846,13 @@ function main() {
         };
       });
       const entry = save(itemsWithCode, meta);
+      if (isDebug()) {
+        try { console.debug('[DEBUG] entry to send', entry); } catch {}
+      }
       let msg = ENABLE_LOCAL_SAVE
         ? `Guardado ${new Date(entry.at).toLocaleString()} (${entry.items.length} item/s)`
         : `Listo (${entry.items.length} item/s)`;
-      const send = await maybeSendToSheets(entry);
+  const send = await maybeSendToSheets(entry);
       sendResult = send;
       if (send.sent) {
         // Registrar firma para bloquear reintentos idénticos por unos segundos
@@ -850,7 +865,22 @@ function main() {
       } else if (send.error) {
         msg += ` — no se pudo enviar a Sheets (${send.error})`;
       }
-      updateResult(`<span style="color:#79ffa7">${msg}</span>`);
+      let extra = '';
+      if (isDebug()) {
+        const first = entry.items && entry.items[0] ? entry.items[0] : null;
+        const dbg = first ? `\n<pre style="white-space:pre-wrap;max-height:200px;overflow:auto;background:#0d0f1a;padding:8px;border-radius:8px;border:1px solid #1c2549">${
+          JSON.stringify({
+            product:first.product,
+            name:first.name,
+            code:first.code,
+            und:first.und,
+            qty:first.quantity,
+            familia:first.familia
+          }, null, 2)
+        }</pre>` : '';
+        extra = dbg;
+      }
+      updateResult(`<span style="color:#79ffa7">${msg}</span>${extra}`);
       // Reset: dejar una sola fila vacía
       rowsEl.innerHTML = "";
       rowsEl.appendChild(createRow());
