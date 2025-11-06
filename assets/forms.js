@@ -324,7 +324,7 @@ window.FORMS = [
   {
     id: "solicitudes-pedido",
     title: "LA TATA DE LA LIBERTAD SOLICITUDES",
-    sheetTab: "SOLICITUDES",
+    sheetTab: "LA TATA DE LA LIBERTAD",
     color: "#b8f1c4",
     description: "Formulario de Operaciones de Manufactura. Solicitud de producto terminado a tiendas, sedes y ventas al mayor.",
     inheritFrom: "tata-libertad"
