@@ -1051,7 +1051,8 @@ function main() {
         : `Listo (${entry.items.length} item/s)`;
   const send = await maybeSendToSheets(entry);
       sendResult = send;
-      if (send.sent) {
+      const backendOk = !(send && send.data && send.data.ok === false);
+      if (send.sent && backendOk) {
         // Registrar firma para bloquear reintentos idénticos por unos segundos
         localStorage.setItem(LAST_SUBMIT_KEY, JSON.stringify({ hash: signature, at: Date.now() }));
         if (send.via === "proxy") {
@@ -1059,6 +1060,11 @@ function main() {
         } else {
           msg += send.data?.mode === "no-cors" ? " — enviado a Google Sheets (sin lectura)" : " — enviado a Google Sheets";
         }
+      } else if (send.sent && !backendOk) {
+        const errTxt = send.data && send.data.error ? String(send.data.error) : 'error remoto';
+        msg += ` — el Web App respondió ok=false (${errTxt})`;
+        updateResult(`<span style="color:#ffb3b3">${msg}</span>`);
+        return; // no limpiar ni resetear, para que el usuario corrija
       } else if (send.error) {
         msg += ` — no se pudo enviar a Sheets (${send.error})`;
       }
