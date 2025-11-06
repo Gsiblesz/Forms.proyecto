@@ -1053,10 +1053,10 @@ function main() {
       if (send.sent && backendOk) {
         // Si el backend respondió con count=0 en ENTREGADO normal (sin sinSolicitud), intentar fallback automático una vez
         try {
-          const cnt = Number(send.data && send.data.count);
+          const cnt = Number(send.data && (send.data.count ?? send.data.updated ?? send.data.updatedRows ?? send.data.affected));
           const isSolicitud = (meta?.tipo || '').toUpperCase() === 'SOLICITUD';
           const isSin = !!meta?.sinSolicitud;
-          if (!isSolicitud && !isSin && Number.isFinite(cnt) && cnt === 0) {
+          if (!isSolicitud && !isSin && (!Number.isFinite(cnt) || cnt <= 0)) {
             // Fallback: convertir a "sin solicitud" y reintentar una vez
             const selectedDate = document.getElementById("meta-date")?.value || '';
             const ymd = (selectedDate || new Date().toISOString().slice(0,10)).replace(/-/g,'');
