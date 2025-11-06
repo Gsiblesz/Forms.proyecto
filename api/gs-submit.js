@@ -26,9 +26,11 @@ module.exports = async function handler(req, res) {
     const base = (typeof parsed.url === 'string' && parsed.url) || process.env.GS_WEBAPP_URL;
     if (!base) return res.status(500).json({ ok: false, error: 'Missing Web App URL (url or GS_WEBAPP_URL)' });
 
-    const envToken = process.env.GS_TOKEN || '';
-    const entry = parsed.entry || {};
-    const withToken = envToken ? { ...entry, token: envToken } : entry; // prefer server token when available
+  const envToken = process.env.GS_TOKEN || '';
+  const entry = parsed.entry || {};
+  // Preferir el token del cliente si viene en el payload; usar el de servidor solo si falta
+  const effToken = entry && entry.token ? entry.token : envToken;
+  const withToken = effToken ? { ...entry, token: effToken } : entry;
 
     const gsRes = await fetch(base, {
       method: 'POST',
