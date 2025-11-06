@@ -1,23 +1,208 @@
-// Catálogo simple de productos por defecto; cada formulario puede sobreescribirlo en assets/forms.js
-let PRODUCT_CATALOG = [
-  { id: "P-001", name: "Arroz 1Kg" },
-  { id: "P-002", name: "Azúcar 1Kg" },
-  { id: "P-003", name: "Aceite 1L" },
-  { id: "P-004", name: "Harina 1Kg" },
-  { id: "P-005", name: "Café 500g" },
-];
+// Catálogo por defecto vacío. Siempre se sobreescribe desde assets/forms.js
+// según el formulario activo (o por grupos en LA TATA / inventario).
+let PRODUCT_CATALOG = [];
 let PRODUCT_GROUPS = null; // [{label, products:[string]}]
+let QTY_LABEL = 'Cantidad'; // texto del label para el campo cantidad en las filas
 let CODE_MAP = {}; // opcional por formulario: { nombreProducto: codigo }
 let UND_MAP = {};  // opcional por formulario: { nombreProducto: 'UND'|'PAQ'|'CAJ'|'KG' }
+
+// Familias auto-detectadas (DONAS, HOJALDRE, PANADERIA)
+const FAMILY_SETS = { DONAS: new Set(), HOJALDRE: new Set(), PANADERIA: new Set() };
+let FAMILIES_LOADED = false;
+let SHOW_ROW_FAMILY = false; // mostrar columna de familia por fila (solo solicitudes-pedido)
+
+// Modo debug: habilita logs detallados si ?debug=1 o localStorage.debug === '1'
+function isDebug() {
+  try {
+    const u = new URL(window.location.href);
+    if (u.searchParams.get('debug') === '1') return true;
+  } catch {}
+  try { if (localStorage.getItem('debug') === '1') return true; } catch {}
+  return false;
+}
+
+async function loadFamilySets() {
+  try {
+    const paths = [
+      './assets/DONAS.tsv',
+      './assets/HOJALDRE.tsv',
+      './assets/PANADERIA.tsv',
+    ];
+    const texts = await Promise.all(paths.map(p => fetch(p).then(r => r.ok ? r.text() : '')));
+    const [donas, hojaldre, panaderia] = texts;
+    function fillSet(tsv, set) {
+      if (!tsv) return;
+      tsv.split(/\r?\n/).forEach(line => {
+        if (!line.trim()) return;
+        const parts = line.split('\t');
+        const name = parts[3] || '';
+        if (name) set.add(name.trim());
+      });
+    }
+    fillSet(donas, FAMILY_SETS.DONAS);
+    fillSet(hojaldre, FAMILY_SETS.HOJALDRE);
+    fillSet(panaderia, FAMILY_SETS.PANADERIA);
+    FAMILIES_LOADED = true;
+  } catch (e) {
+    console.warn('No se pudieron cargar las familias desde TSV:', e);
+    FAMILIES_LOADED = false; // seguimos, la UI funciona sin familia
+  }
+}
+
+function familyForProduct(name) {
+  const n = String(name || '').trim();
+  if (!n) return '';
+  if (FAMILY_SETS.DONAS.has(n)) return 'DONAS';
+  if (FAMILY_SETS.HOJALDRE.has(n)) return 'HOJALDRE';
+  if (FAMILY_SETS.PANADERIA.has(n)) return 'PANADERIA';
+  return '';
+}
+
+function productDisplayName(val) {
+  // Si val coincide con un id del catálogo, devuelve su nombre; si no, asume que ya es el nombre
+  const found = PRODUCT_CATALOG.find(p => p.id === val);
+  return found?.name || String(val || '');
+}
+
+function isCodeLike(v) {
+  const s = String(v || '').trim();
+  // PTSU0065, ST..., PT..., u otros códigos alfanuméricos en mayúsculas
+  return /^[A-Z]{2,}[A-Z0-9]*\d{2,}$/.test(s);
+}
+
+function nameForCode(code) {
+  const c = String(code || '').trim();
+  if (!c) return '';
+  // 1) Invertir CODE_MAP si existe
+  for (const [name, k] of Object.entries(CODE_MAP || {})) {
+    if (k === c) return name;
+  }
+  // 2) Buscar en el catálogo si el id es un código
+  const found = PRODUCT_CATALOG.find(p => p.id === c);
+  if (found && found.name) return found.name;
+  return '';
+}
+
+// Valor que debe setearse en el <select> para un nombre dado
+function selectValueForName(name) {
+  const n = String(name || '').trim();
+  if (!n) return '';
+  if (Array.isArray(PRODUCT_GROUPS) && PRODUCT_GROUPS.length) {
+    // En grupos, el value de las <option> es el nombre
+    return n;
+  }
+  const found = PRODUCT_CATALOG.find(p => p.name === n);
+  return found ? found.id : n;
+}
+
+// Construye un índice de búsqueda {id,name,code,value}
+function buildSearchIndex() {
+  const list = [];
+  if (Array.isArray(PRODUCT_GROUPS) && PRODUCT_GROUPS.length) {
+    for (const g of PRODUCT_GROUPS) {
+      for (const name of g.products) {
+        const code = CODE_MAP?.[name] || (PRODUCT_CATALOG.find(p => p.name === name)?.id) || '';
+        list.push({ id: code || name, name, code, value: selectValueForName(name) });
+      }
+    }
+    return list;
+  }
+  for (const p of PRODUCT_CATALOG) {
+    list.push({ id: p.id, name: p.name, code: (/^[A-Z0-9-]+$/.test(p.id) ? p.id : (CODE_MAP?.[p.name] || '')), value: p.id });
+  }
+  return list;
+}
+
+// Abre modal para buscar productos y asigna al <select> destino
+function openProductPicker(targetSelect) {
+  const data = buildSearchIndex();
+  const overlay = document.createElement('div');
+  overlay.className = 'modal-overlay';
+  overlay.innerHTML = `
+    <div class="modal" role="dialog" aria-modal="true">
+      <h3>Buscar producto</h3>
+      <input class="searchbox" type="text" placeholder="Escribe para filtrar…" />
+      <div class="list"></div>
+    </div>`;
+  document.body.appendChild(overlay);
+  const input = overlay.querySelector('.searchbox');
+  const list = overlay.querySelector('.list');
+  let filtered = data.slice(0);
+  let active = 0;
+  const render = () => {
+    list.innerHTML = '';
+    filtered.forEach((it, i) => {
+      const div = document.createElement('div');
+      div.className = 'item' + (i === active ? ' active' : '');
+      div.innerHTML = `<div class="name">${it.name}</div><div class="code">${it.code || ''}</div>`;
+      div.addEventListener('click', () => {
+        targetSelect.value = it.value;
+        targetSelect.dispatchEvent(new Event('change'));
+        const row = targetSelect.closest('.row');
+        row?.querySelector('.quantity')?.focus();
+        document.body.removeChild(overlay);
+      });
+      list.appendChild(div);
+    });
+  };
+  const applyFilter = () => {
+    const q = String(input.value || '').toLowerCase().trim();
+    if (!q) { filtered = data.slice(0, 300); active = 0; return render(); }
+    filtered = data.filter(it => it.name.toLowerCase().includes(q) || String(it.code||'').toLowerCase().includes(q)).slice(0, 300);
+    active = 0; render();
+  };
+  overlay.addEventListener('click', (e) => { if (e.target === overlay) document.body.removeChild(overlay); });
+  input.addEventListener('input', applyFilter);
+  input.addEventListener('keydown', (e) => {
+    if (e.key === 'Escape') { document.body.removeChild(overlay); }
+    if (e.key === 'ArrowDown') { e.preventDefault(); active = Math.min(active + 1, filtered.length - 1); render(); }
+    if (e.key === 'ArrowUp') { e.preventDefault(); active = Math.max(active - 1, 0); render(); }
+    if (e.key === 'Enter') {
+      const it = filtered[active];
+      if (it) {
+        targetSelect.value = it.value;
+        targetSelect.dispatchEvent(new Event('change'));
+        const row = targetSelect.closest('.row');
+        row?.querySelector('.quantity')?.focus();
+        document.body.removeChild(overlay);
+      }
+    }
+  });
+  applyFilter();
+  setTimeout(() => input.focus(), 0);
+}
+
+function recomputeFamiliaUI() {
+  // Solo muestra en Solicitudes simple (solicitudes-pedido)
+  const famInput = document.getElementById('meta-familia');
+  if (!famInput) return;
+  const items = readForm();
+  const fams = new Set();
+  for (const it of items) {
+    if (it.product) {
+      const f = familyForProduct(it.product);
+      if (f) fams.add(f);
+    }
+  }
+  if (fams.size === 0) {
+    famInput.value = '';
+  } else if (fams.size === 1) {
+    famInput.value = Array.from(fams)[0];
+  } else {
+    famInput.value = 'MIXTO';
+  }
+}
 
 // Anti-duplicado en cliente: ventana de deduplicación e intervalo de "enfriamiento"
 const LAST_SUBMIT_KEY = "last_submit_signature"; // { hash: string, at: number }
 const DUPLICATE_WINDOW_MS = 20_000; // bloquear reenvíos idénticos dentro de 20s
 const SUBMIT_COOLDOWN_MS = 4_000;  // mantener botón deshabilitado X segundos tras envío
 
+// Guardado local (localStorage). Pon en false para desactivar completamente el almacenamiento local
+const ENABLE_LOCAL_SAVE = false;
 const STORAGE_KEY = "productos_registrados";
 const SETTINGS_KEY = "gs_settings"; // { url: string, enabled: boolean, token?: string }
-const DEFAULT_GS_URL = "https://script.google.com/macros/s/AKfycby1VqJlGRa0BlG2CNnDxGSqX0xtCaVdpfGClZJaLxYfso2Q0bZvl1niTS36Oy7D0zPPmg/exec";
+const DEFAULT_GS_URL = "https://script.google.com/macros/s/AKfycbwCeVnfRb_LgX59kwCvaCbQR0eeRECxplyaBADs3dgdN-a_f_yb0ebktm7lPrc7AiSCMg/exec";
 const DEFAULT_GS_TOKEN = "Pasantias90";
 const ROLE_KEY = "app_role"; // 'worker' | 'admin'
 
@@ -75,7 +260,8 @@ function buildSubmitSignature(items, meta) {
 
 function createRow(productId = "", quantity = "") {
   const div = document.createElement("div");
-  div.className = "row";
+  // Cuando mostramos familia por fila, la fila usa 4 columnas (producto, familia, cantidad, borrar)
+  div.className = "row" + (SHOW_ROW_FAMILY ? " has-family" : "");
   let optionsHtml = '';
   if (Array.isArray(PRODUCT_GROUPS) && PRODUCT_GROUPS.length) {
     optionsHtml += `<option value="" disabled ${productId ? '' : 'selected'}>Selecciona un producto…</option>`;
@@ -95,16 +281,77 @@ function createRow(productId = "", quantity = "") {
     `;
   }
 
-  div.innerHTML = `
-    <select class="product" required>${optionsHtml}</select>
-    <input type="number" class="quantity" min="0" step="1" placeholder="0" value="${quantity}" required />
-    <button type="button" class="remove-btn" title="Eliminar fila">✕</button>
-  `;
+  const qtyLabel = QTY_LABEL || 'Cantidad';
+  // Familia por fila: como <select> para permitir override manual cuando no se reconoce
+  const famHtml = SHOW_ROW_FAMILY ? `
+      <select class="family" title="Familia">
+        <option value="">Familia…</option>
+        <option value="DONAS">DONAS</option>
+        <option value="HOJALDRE">HOJALDRE</option>
+        <option value="PANADERIA">PANADERIA</option>
+      </select>
+    ` : '';
+  const searchHtml = `<button type="button" class="search-btn" title="Buscar producto">🔎</button>`;
+  if (SHOW_ROW_FAMILY) {
+    // Orden: producto | familia | buscar | cantidad | borrar
+    div.innerHTML = `
+      <select class="product" required>${optionsHtml}</select>
+      ${famHtml}
+      ${searchHtml}
+      <div class="qty-cell">
+        <label class="row-label">${qtyLabel}</label>
+        <input type="number" class="quantity" min="0" step="1" placeholder="0" value="${quantity}" required />
+      </div>
+      <button type="button" class="remove-btn" title="Eliminar fila">✕</button>
+    `;
+  } else {
+    // Orden: producto | buscar | cantidad | borrar
+    div.innerHTML = `
+      <select class="product" required>${optionsHtml}</select>
+      ${searchHtml}
+      <div class="qty-cell">
+        <label class="row-label">${qtyLabel}</label>
+        <input type="number" class="quantity" min="0" step="1" placeholder="0" value="${quantity}" required />
+      </div>
+      <button type="button" class="remove-btn" title="Eliminar fila">✕</button>
+    `;
+  }
 
   div.querySelector(".remove-btn").addEventListener("click", () => {
     div.remove();
     updateResult();
+    // actualizar familia automática si aplica
+    recomputeFamiliaUI();
   });
+
+  // Recalcular familia por fila cuando cambia el producto seleccionado
+  const prodSel = div.querySelector('.product');
+  const famInput = div.querySelector('.family');
+  const searchBtn = div.querySelector('.search-btn');
+  const setRowFamily = () => {
+    if (!famInput) return;
+    const val = prodSel?.value || '';
+    const name = productDisplayName(val);
+    const detected = familyForProduct(name) || '';
+    if (detected) {
+      famInput.value = detected;
+      famInput.disabled = true; // si se reconoce, bloquear edición
+      famInput.title = `Familia (auto: ${detected})`;
+    } else {
+      // permitir que el usuario seleccione manualmente
+      if (!famInput.value) famInput.value = '';
+      famInput.disabled = false;
+      famInput.title = 'Familia';
+    }
+  };
+  if (prodSel) {
+    prodSel.addEventListener('change', setRowFamily);
+    // Inicializar en caso de que productId venga prefijado
+    setRowFamily();
+  }
+  if (searchBtn && prodSel) {
+    searchBtn.addEventListener('click', () => openProductPicker(prodSel));
+  }
 
   return div;
 }
@@ -115,7 +362,9 @@ function readForm() {
     const product = row.querySelector(".product").value;
     const qtyStr = row.querySelector(".quantity").value.trim();
     const quantity = qtyStr === "" ? NaN : Number(qtyStr);
-    return { product, quantity };
+    const famSel = row.querySelector('.family');
+    const family = famSel ? String(famSel.value || '').trim().toUpperCase() : '';
+    return { product, quantity, family };
   });
   return items;
 }
@@ -140,11 +389,14 @@ function validate(items) {
 }
 
 function save(items, meta) {
-  const prev = JSON.parse(localStorage.getItem(STORAGE_KEY) || "[]");
   const now = new Date().toISOString();
   // ID corto: base36 timestamp + 4 chars aleatorios
   const shortId = (Date.now().toString(36) + Math.random().toString(36).slice(2,6)).toUpperCase();
   const entry = { id: shortId, at: now, items, meta };
+  if (!ENABLE_LOCAL_SAVE) {
+    return entry; // no persistimos en localStorage cuando está desactivado
+  }
+  const prev = JSON.parse(localStorage.getItem(STORAGE_KEY) || "[]");
   const next = [...prev, entry];
   localStorage.setItem(STORAGE_KEY, JSON.stringify(next));
   return entry;
@@ -155,9 +407,12 @@ async function maybeSendToSheets(entry) {
   if (!settings.enabled || !settings.url) return { sent: false };
   try {
     // Enviar tal cual (items: [{product, quantity}])
-    const payloadObj = settings.token ? { ...entry, token: settings.token } : entry;
-    // Permitir URL específica por formulario (si viene en meta)
-    const effectiveUrl = (entry && entry.meta && entry.meta.gsUrl) ? entry.meta.gsUrl : settings.url;
+    const payloadObj = (() => {
+      const base = { ...entry };
+      if (settings.token) base.token = settings.token;
+      if (isDebug()) base.debug = true; // pedir eco/idx al backend cuando debug
+      return base;
+    })();
     const payload = JSON.stringify(payloadObj);
     // Intento 0: proxy en Vercel para lectura de respuesta y ocultar token del cliente
     const canUseProxy = (() => {
@@ -168,7 +423,7 @@ async function maybeSendToSheets(entry) {
         const res = await fetch("/api/gs-submit", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ url: effectiveUrl, entry: payloadObj }),
+          body: JSON.stringify({ url: settings.url, entry: payloadObj }),
         });
         if (res.ok) {
           const data = await res.json().catch(() => ({}));
@@ -181,7 +436,7 @@ async function maybeSendToSheets(entry) {
     }
     // Intento 1: CORS normal (text/plain should be simple request)
     try {
-      const res = await fetch(effectiveUrl, {
+      const res = await fetch(settings.url, {
         method: "POST",
         headers: { "Content-Type": "text/plain;charset=utf-8" },
         body: payload,
@@ -192,7 +447,7 @@ async function maybeSendToSheets(entry) {
       return { sent: true, data };
     } catch (corsErr) {
       // Intento 2: no-cors (fire-and-forget). No podremos leer respuesta.
-      await fetch(effectiveUrl, {
+      await fetch(settings.url, {
         method: "POST",
         body: payload,
         mode: "no-cors",
@@ -208,7 +463,14 @@ async function maybeSendToSheets(entry) {
 
 function updateResult(message = null, type = "info") {
   const el = document.getElementById("result");
-  if (message == null) {
+  if (!el) return;
+  if (!ENABLE_LOCAL_SAVE && message == null) {
+    // Sin guardado local: no mostramos resumen, solo mensajes explícitos
+    el.classList.add("hidden");
+    el.innerHTML = "";
+    return;
+  }
+  if (ENABLE_LOCAL_SAVE && message == null) {
     const all = JSON.parse(localStorage.getItem(STORAGE_KEY) || "[]");
     if (all.length === 0) {
       el.classList.add("hidden");
@@ -270,17 +532,41 @@ function download(filename, content, type = "text/plain") {
 }
 
 function main() {
+  // Configuración inicial
+  function loadFormByTab(tabId) {
+    const formConfig = window.FORMS.find(f => f.id === tabId);
+    if (!formConfig) {
+      console.error(`No se encontró configuración para la pestaña: ${tabId}`);
+      return;
+    }
+
+    // Actualizar el título y descripción del formulario
+    const titleEl = document.getElementById("form-title");
+    const descEl = document.getElementById("form-desc");
+    if (titleEl) titleEl.textContent = formConfig.title;
+    if (descEl) descEl.textContent = formConfig.description;
+  }
+
+  // Detectar la pestaña seleccionada al cargar la página
+  const urlParams = new URLSearchParams(window.location.search);
+  const hasFormParam = urlParams.has("form");
+  if (!hasFormParam) {
+    const activeTab = urlParams.get("tab") || "solicitudes";
+    loadFormByTab(activeTab);
+  }
+}
+
+
   // Gate de acceso por rol: si no hay rol, volver a portada
   const role = localStorage.getItem(ROLE_KEY);
   if (!role) {
     try { window.location.replace("./menu.html"); } catch { window.location.href = "./menu.html"; }
-    return;
+    // No usamos 'return' en el nivel superior para evitar errores de sintaxis
   }
   const isAdmin = role === 'admin';
-  // Esperar a que forms.js cargue si aún no está disponible
   if (!Array.isArray(window.FORMS) || window.FORMS.length === 0) {
+    // Defer inicialización si aún no cargó forms.js
     setTimeout(main, 120);
-    return;
   }
   // Detectar formulario desde query y configurar título/estilos
   const u = new URL(window.location.href);
@@ -296,6 +582,19 @@ function main() {
     cfg = formsList.find(f => f.id === DEFAULT_FORM_ID) || formsList[0];
   }
   if (cfg) {
+    // Herencia opcional de otro formulario (para reutilizar catálogo/grupos/mapas)
+    if (cfg.inheritFrom) {
+      try {
+        const base = (Array.isArray(formsList) ? formsList : []).find(f => f.id === cfg.inheritFrom);
+        if (base && typeof base === 'object') {
+          if (!cfg.groups && Array.isArray(base.groups)) cfg.groups = base.groups;
+          if (!cfg.catalog && Array.isArray(base.catalog)) cfg.catalog = base.catalog;
+          if (!cfg.codeMap && base.codeMap) cfg.codeMap = base.codeMap;
+          if (!cfg.undMap && base.undMap) cfg.undMap = base.undMap;
+          if (!cfg.sedes && Array.isArray(base.sedes)) cfg.sedes = base.sedes;
+        }
+      } catch {}
+    }
     // Catálogo por formulario (si se definió)
     if (Array.isArray(cfg.catalog) && cfg.catalog.length) {
       PRODUCT_CATALOG = cfg.catalog;
@@ -325,20 +624,23 @@ function main() {
     if (subEl) subEl.textContent = `Pestaña en Google Sheets: ${cfg.sheetTab}`;
   const descEl = document.getElementById("form-desc");
   if (descEl && cfg.description) descEl.textContent = cfg.description;
-    // Link del visor con sheet (agrega formId y ssurl si aplica)
+    // Link del visor con sheet (y formId cuando aplica)
     const v = document.getElementById("viewer-link");
     if (v) {
       const link = new URL("./registros.html", location.href);
       link.searchParams.set("sheet", cfg.sheetTab);
-      if (cfg.id) link.searchParams.set("formId", cfg.id);
-      if (cfg.ssurl) link.searchParams.set("ssurl", cfg.ssurl);
+      // Para el visor de Inventario PT, pasar formId para que el Apps Script rote al target correcto si lo soporta
+      if (cfg.id === 'registros') {
+        link.searchParams.set('formId', 'inventario-pt');
+      }
       v.href = link.toString();
     }
     // Aplicar color suave como banda superior (opcional)
     try { document.documentElement.style.setProperty("--accent", cfg.color); } catch {}
 
-  // Personalización por formulario: LA TATA DE LA LIBERTAD
-    if (cfg.id === 'tata-libertad') {
+  // Personalización por formulario: LA TATA DE LA LIBERTAD (alias: solicitudes)
+    if (cfg.id === 'tata-libertad' || cfg.id === 'solicitudes') {
+      QTY_LABEL = 'CANTIDAD REGISTRADA';
       // Construir grupos y catálogo plano para mapear nombres
       if (Array.isArray(cfg.groups) && cfg.groups.length) {
         PRODUCT_GROUPS = cfg.groups;
@@ -365,42 +667,62 @@ function main() {
       // Cambiar etiqueta de responsable a "Entregado por"
       const lbl = document.getElementById('label-resp');
       if (lbl) lbl.textContent = 'Entregado por';
-      // Insertar controles de TIPO y FAMILIA
+      // Controles extra mínimos: permitir marcar "registro sin solicitud" y un campo opcional de referencia
       const extra = document.getElementById('form-extra');
       if (extra) {
         extra.innerHTML = `
-          <div class="meta" style="margin-bottom:0">
+          <div class="meta" style="gap:12px;align-items:end">
             <div>
-              <label>Tipo</label>
-              <select id="meta-tipo">
-                <option value="MERMA">MERMA</option>
-                <option value="ENTREGADO">ENTREGADO</option>
-              </select>
+              <label><input type="checkbox" id="meta-sin-solicitud"> Registro sin solicitud</label>
             </div>
-            <div id="familia-wrap" style="display:none">
-              <label>Familia</label>
-              <select id="meta-familia"></select>
+            <div id="sol-id-wrap">
+              <label>N° Solicitud (opcional)</label>
+              <input type="text" id="meta-sol-id" placeholder="Ej: SOL-1234" />
             </div>
           </div>
+          <small class="muted">Si marcas "Registro sin solicitud" y dejas vacío el número, se generará uno automáticamente.</small>
         `;
-        const familiaSel = document.getElementById('meta-familia');
-        if (familiaSel && Array.isArray(cfg.familias)) {
-          familiaSel.innerHTML = cfg.familias.map(f => `<option value="${f}">${f}</option>`).join('');
-        }
-        const tipoSel = document.getElementById('meta-tipo');
-        const familiaWrap = document.getElementById('familia-wrap');
-        const syncTipo = () => {
-          const v = tipoSel.value;
-          const showFam = v === 'ENTREGADO';
-          familiaWrap.style.display = showFam ? '' : 'none';
-          if (!showFam && familiaSel) {
-            // limpiar valor de familia cuando no aplica (MERMA u otros)
-            familiaSel.value = '';
-          }
+        // Habilitar/deshabilitar campo según el checkbox
+        const chk = document.getElementById('meta-sin-solicitud');
+        const inp = document.getElementById('meta-sol-id');
+        const toggle = () => {
+          if (!chk || !inp) return;
+          inp.disabled = chk.checked && !inp.value;
+          inp.placeholder = chk.checked ? 'Se generará automáticamente' : 'Ej: SOL-1234';
         };
-        tipoSel.addEventListener('change', syncTipo);
-        syncTipo();
+        chk?.addEventListener('change', toggle);
+        inp?.addEventListener('input', toggle);
+        toggle();
       }
+    }
+    // Personalización por formulario: Solicitudes simple (fecha, sede, responsable, productos y cantidades)
+    if (cfg.id === 'solicitudes-pedido') {
+      QTY_LABEL = 'CANTIDAD SOLICITADA';
+      // Mostrar columna de familia por fila y cargar sets
+      SHOW_ROW_FAMILY = true;
+      loadFamilySets().catch(() => {});
+      // Reutiliza grupos/mapas ya heredados; construir catálogo plano desde grupos si aplica
+      if (Array.isArray(cfg.groups) && cfg.groups.length) {
+        PRODUCT_GROUPS = cfg.groups;
+        const flat = [];
+        const seen = new Set();
+        for (const g of cfg.groups) {
+          for (const name of g.products) {
+            const code = (cfg.codeMap && cfg.codeMap[name]) ? cfg.codeMap[name] : name;
+            if (!seen.has(name)) { flat.push({ id: code, name }); seen.add(name); }
+          }
+        }
+        PRODUCT_CATALOG = flat;
+      }
+      // Poblar sedes igual que el formulario base (heredadas)
+      const sedeList = document.getElementById('sede-list');
+      if (sedeList && Array.isArray(cfg.sedes)) {
+        sedeList.innerHTML = '';
+        cfg.sedes.forEach(s => { const opt = document.createElement('option'); opt.value = s; sedeList.appendChild(opt); });
+      }
+      // Asegurar etiqueta de responsable por defecto
+      const lbl = document.getElementById('label-resp');
+      if (lbl) lbl.textContent = 'Responsable';
     }
     // Personalización por formulario: CONGELADOS HOJALDRE (simple)
     if (cfg.id === 'congelados-hojaldre') {
@@ -418,9 +740,36 @@ function main() {
       if (lbl) lbl.textContent = 'Entregado por';
       // Este formulario no tiene TIPO/FAMILIA, así que no añadimos controles extra.
     }
+    // Personalización por formulario: MERMA (solo producto y cantidad)
+    if (cfg.id === 'merma') {
+      QTY_LABEL = 'CANTIDAD';
+      // Construir catálogo desde grupos heredados (de LA TATA)
+      if (Array.isArray(cfg.groups) && cfg.groups.length) {
+        PRODUCT_GROUPS = cfg.groups;
+        const flat = [];
+        const seen = new Set();
+        for (const g of cfg.groups) {
+          for (const name of g.products) {
+            const code = (cfg.codeMap && cfg.codeMap[name]) ? cfg.codeMap[name] : name;
+            if (!seen.has(name)) { flat.push({ id: code, name }); seen.add(name); }
+          }
+        }
+        PRODUCT_CATALOG = flat;
+      }
+      // Ocultar metadata (sede, responsable, fecha) y extras
+      const metaBox = document.querySelector('.meta');
+      if (metaBox) metaBox.style.display = 'none';
+      const extra = document.getElementById('form-extra');
+      if (extra) {
+        extra.innerHTML = '<small class="muted">MERMA aplica solo para la sede <strong>BELLO CAMPO</strong>.</small>';
+      }
+      // Forzar sede fija a BELLO CAMPO
+      const sedeInputFixed = document.getElementById('meta-sede');
+      if (sedeInputFixed) sedeInputFixed.value = 'BELLO CAMPO';
+    }
   }
-  // Personalización por formulario: INVENTARIO PRODUCTO TERMINADO
-  if (cfg.id === 'inventario-pt') {
+  // Personalización por formulario: INVENTARIO PRODUCTO TERMINADO (alias: registros)
+  if (cfg && (cfg.id === 'inventario-pt' || cfg.id === 'registros')) {
     // poblar sedes si están definidas (nombres completos)
     const sedeList = document.getElementById('sede-list');
     if (sedeList && Array.isArray(cfg.sedes)) {
@@ -601,11 +950,50 @@ function main() {
       sheet: cfg?.sheetTab || null,
       tipo: document.getElementById('meta-tipo')?.value || null,
       familia: (document.getElementById('meta-tipo')?.value === 'MERMA') ? null : (document.getElementById('meta-familia')?.value || null),
-      // Overrides opcionales por formulario
-      gsUrl: (cfg && typeof cfg.gsUrl === 'string' && cfg.gsUrl) ? cfg.gsUrl : null,
-      ssid: (cfg && typeof cfg.ssid === 'string' && cfg.ssid) ? cfg.ssid : null,
-      ssurl: (cfg && typeof cfg.ssurl === 'string' && cfg.ssurl) ? cfg.ssurl : null,
     };
+    // Enviar formId lógico para que el backend rote Inventario PT si está configurado
+    if (cfg && cfg.id === 'registros') {
+      metaProbe.formId = 'inventario-pt';
+    }
+    // Enviar también la fecha como texto plano para que el backend NO la reprocese con zonas horarias
+    if (metaProbe && metaProbe.fecha) {
+      metaProbe.fechaTxt = metaProbe.fecha;
+    }
+    // Default para Registros LA TATA: ENTREGADO (sin UI de tipo)
+    if (cfg && (cfg.id === 'tata-libertad' || cfg.id === 'solicitudes')) {
+      if (!metaProbe.tipo) metaProbe.tipo = 'ENTREGADO';
+      // Gestión de solicitud: permitir "sin solicitud" y generar identificador
+      const solIdEl = document.getElementById('meta-sol-id');
+      const sinSolEl = document.getElementById('meta-sin-solicitud');
+      let solId = (solIdEl?.value || '').trim();
+      let sinSol = !!sinSolEl?.checked;
+      const selectedDate = document.getElementById("meta-date")?.value || '';
+      const ymd = (selectedDate || new Date().toISOString().slice(0,10)).replace(/-/g,'');
+      if (!solId && sinSol) {
+        const rand = Math.random().toString(36).slice(2,6).toUpperCase();
+        solId = `SIN-SOL-${ymd}-${rand}`;
+      }
+      if (!solId) {
+        // Si no hay número y tampoco marcaron la casilla, considerar igual como sin solicitud
+        sinSol = true;
+        const rand = Math.random().toString(36).slice(2,6).toUpperCase();
+        solId = `SIN-SOL-${ymd}-${rand}`;
+      }
+      metaProbe.solicitudId = solId;
+      metaProbe.sinSolicitud = sinSol;
+    }
+    // Forzar un tipo estándar para el formulario de Solicitudes simple
+    if (cfg && cfg.id === 'solicitudes-pedido') {
+      metaProbe.tipo = 'SOLICITUD';
+      // En Solicitudes cada item define su familia; no enviamos familia a nivel meta
+      metaProbe.familia = null;
+    }
+    // Forzar tipo para MERMA
+    if (cfg && cfg.id === 'merma') {
+      metaProbe.tipo = 'MERMA';
+      metaProbe.familia = null;
+      if (!metaProbe.sede) metaProbe.sede = 'BELLO CAMPO';
+    }
     const signature = buildSubmitSignature(items, metaProbe);
     const lastSig = JSON.parse(localStorage.getItem(LAST_SUBMIT_KEY) || "null");
     const nowMs = Date.now();
@@ -627,10 +1015,41 @@ function main() {
     let sendResult = null;
     try {
       // enriquecer con código y unidad por producto
-      const itemsWithCode = items.map(it => ({ ...it, code: codeForProduct(it.product), und: undForProduct(it.product) }));
+      const itemsWithCode = items.map(it => {
+        const raw = String(it.product || '').trim();
+        // Intentar obtener nombre por id -> nombre
+        let name = productDisplayName(raw);
+        // Si no resolvió (o devolvió el mismo código), y parece un código, intentar invertir
+        if (!name || isCodeLike(raw) && name === raw) {
+          const fromCode = nameForCode(raw);
+          if (fromCode) name = fromCode;
+        }
+        // Si aún no hay nombre y el raw parece ser código, mantén el código como code
+        let code = codeForProduct(name);
+        if ((!code || code === name) && isCodeLike(raw)) {
+          code = raw; // usar el valor elegido como código
+        }
+        const detectedFam = String(familyForProduct(name) || '').toUpperCase();
+        const uiFam = String(it.family || '').toUpperCase();
+        const familia = detectedFam || uiFam || undefined;
+        return {
+          quantity: it.quantity,
+          family: it.family,
+          // Canon: 'product' siempre es el NOMBRE legible
+          product: name || raw,
+          code,
+          und: undForProduct(name || raw),
+          familia,
+        };
+      });
       const entry = save(itemsWithCode, meta);
-      let msg = `Guardado ${new Date(entry.at).toLocaleString()} (${entry.items.length} item/s)`;
-      const send = await maybeSendToSheets(entry);
+      if (isDebug()) {
+        try { console.debug('[DEBUG] entry to send', entry); } catch {}
+      }
+      let msg = ENABLE_LOCAL_SAVE
+        ? `Guardado ${new Date(entry.at).toLocaleString()} (${entry.items.length} item/s)`
+        : `Listo (${entry.items.length} item/s)`;
+  const send = await maybeSendToSheets(entry);
       sendResult = send;
       if (send.sent) {
         // Registrar firma para bloquear reintentos idénticos por unos segundos
@@ -643,7 +1062,40 @@ function main() {
       } else if (send.error) {
         msg += ` — no se pudo enviar a Sheets (${send.error})`;
       }
-      updateResult(`<span style="color:#79ffa7">${msg}</span>`);
+      let extra = '';
+      if (isDebug()) {
+        const first = entry.items && entry.items[0] ? entry.items[0] : null;
+        const dbg = first ? `\n<pre style="white-space:pre-wrap;max-height:200px;overflow:auto;background:#0d0f1a;padding:8px;border-radius:8px;border:1px solid #1c2549">${
+          JSON.stringify({
+            item:{
+              product:first.product,
+              code:first.code,
+              und:first.und,
+              qty:first.quantity,
+              familia:first.familia
+            },
+            meta:{
+              sede: entry.meta?.sede || null,
+              responsable: entry.meta?.responsable || null,
+              fecha: entry.meta?.fecha || null,
+              fechaTxt: entry.meta?.fechaTxt || null,
+              tipo: entry.meta?.tipo || null,
+              solicitudId: entry.meta?.solicitudId || null,
+              sinSolicitud: entry.meta?.sinSolicitud || null,
+              sheet: entry.meta?.sheet || null,
+              formId: entry.meta?.formId || null
+            }
+          }, null, 2)
+        }</pre>` : '';
+        // incluir eco del backend si vino
+        const echo = sendResult && sendResult.data && (sendResult.data.firstItem || sendResult.data.idx)
+          ? `\n<pre style="white-space:pre-wrap;max-height:200px;overflow:auto;background:#0d0f1a;padding:8px;border-radius:8px;border:1px solid #1c2549">${
+            JSON.stringify({ backendFirstItem: sendResult.data.firstItem, backendIdx: sendResult.data.idx }, null, 2)
+          }</pre>`
+          : '';
+        extra = dbg + echo;
+      }
+      updateResult(`<span style="color:#79ffa7">${msg}</span>${extra}`);
       // Reset: dejar una sola fila vacía
       rowsEl.innerHTML = "";
       rowsEl.appendChild(createRow());
@@ -651,6 +1103,8 @@ function main() {
       document.getElementById("meta-sede").value = "";
       document.getElementById("meta-resp").value = "";
       document.getElementById("meta-date").value = "";
+      // recalcular familia automática (queda en blanco hasta nueva selección)
+      recomputeFamiliaUI();
     } finally {
       isSubmitting = false;
       if (submitBtn) {
@@ -669,6 +1123,10 @@ function main() {
   });
 
   if (exportBtn) exportBtn.addEventListener("click", () => {
+    if (!ENABLE_LOCAL_SAVE) {
+      updateResult("El guardado local está desactivado");
+      return;
+    }
     const entries = JSON.parse(localStorage.getItem(STORAGE_KEY) || "[]");
     if (entries.length === 0) {
       updateResult("No hay registros para exportar");
@@ -680,6 +1138,10 @@ function main() {
   });
 
   if (clearBtn) clearBtn.addEventListener("click", () => {
+    if (!ENABLE_LOCAL_SAVE) {
+      updateResult("El guardado local está desactivado");
+      return;
+    }
     if (confirm("¿Borrar todos los registros guardados?")) {
       localStorage.removeItem(STORAGE_KEY);
       updateResult();
@@ -711,7 +1173,7 @@ function main() {
     if (testSettingsBtn) testSettingsBtn.addEventListener("click", async () => {
       const url = gsUrlInput.value.trim();
       if (!url) return updateResult("Primero ingresa la URL del Web App");
-      const token = gsTokenInput ? (gsTokenInput.value || '').trim() : '';
+      const token = gsTokenInput.value.trim();
       const probe = {
         id: "test-" + Math.random().toString(36).slice(2, 8),
         at: new Date().toISOString(),
@@ -739,14 +1201,17 @@ function main() {
       }
     });
   } else {
-    // Ensure default settings are applied for non-admin users
-    const preset = { url: DEFAULT_GS_URL, enabled: true, token: DEFAULT_GS_TOKEN };
-    localStorage.setItem(SETTINGS_KEY, JSON.stringify(preset));
+    // Solo inicializar por defecto si no hay ajustes previos; no sobrescribir lo que se configuró en el menú
+    const existing = localStorage.getItem(SETTINGS_KEY);
+    if (!existing) {
+      const preset = { url: DEFAULT_GS_URL, enabled: true, token: DEFAULT_GS_TOKEN };
+      localStorage.setItem(SETTINGS_KEY, JSON.stringify(preset));
+    }
   }
 
   updateResult();
   try { console.debug("Formulario cargado", { formId, cfg }); } catch {}
-}
+
 // Inicializar de forma robusta con y sin defer
 if (document.readyState === "loading") {
   window.addEventListener("DOMContentLoaded", main);
@@ -766,26 +1231,23 @@ if (tipoSel && sedeInput) {
   });
 }
 
-// Personalización para el formulario de solicitud de LA TATA DE LA LIBERTAD
-if (cfg.id === 'solicitud-tata-libertad') {
-  // Datalist de sedes
-  const sedeList = document.getElementById('sede-list');
-  if (sedeList && Array.isArray(cfg.sedes)) {
-    sedeList.innerHTML = '';
-    cfg.sedes.forEach(s => {
-      const opt = document.createElement('option');
-      opt.value = s; sedeList.appendChild(opt);
-    });
+// Cambiar título/desc por 'tab' solo si NO se está usando un formulario específico
+function loadFormByTab(tabId) {
+  const formConfig = window.FORMS.find(f => f.id === tabId);
+  if (!formConfig) {
+    console.error(`No se encontró configuración para la pestaña: ${tabId}`);
+    return;
   }
-  // Etiqueta de responsable
-  const lbl = document.getElementById('label-resp');
-  if (lbl) lbl.textContent = 'Responsable';
-  // Ocultar controles extra, solo mostrar los campos básicos
-  const extra = document.getElementById('form-extra');
-  if (extra) extra.innerHTML = '';
-  // Ocultar tipo y familia si existen
-  const tipoSel = document.getElementById('meta-tipo');
-  if (tipoSel) tipoSel.parentElement.style.display = 'none';
-  const familiaWrap = document.getElementById('familia-wrap');
-  if (familiaWrap) familiaWrap.style.display = 'none';
+  const titleEl = document.getElementById("form-title");
+  const descEl = document.getElementById("form-desc");
+  if (titleEl) titleEl.textContent = formConfig.title;
+  if (descEl) descEl.textContent = formConfig.description;
 }
+
+const _qp = new URLSearchParams(window.location.search);
+if (!_qp.has("form")) {
+  const activeTab = _qp.get("tab") || "solicitudes";
+  loadFormByTab(activeTab);
+}
+
+main();

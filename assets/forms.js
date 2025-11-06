@@ -318,28 +318,21 @@ window.FORMS = [
           "PASTELITO DE HOJALDRE DE POLLO CONGELADO 1 UND ST",
           "PASTELITO DE HOJALDRE RICOTA Y ESPINACA 1 UND ST"
         ]
-      // ...objeto de registro de LA TATA DE LA LIBERTAD...
-},
-{
-  id: "solicitud-tata-libertad",
-  title: "Solicitud - LA TATA DE LA LIBERTAD",
-  sheetTab: "SOLICITUDES",
-  color: "#f1c4b8", // color distintivo para solicitudes
-  description: "Formulario de solicitud de productos para LA TATA DE LA LIBERTAD.",
-  sedes: ["SL", "LPG", "SC", "SCH", "PB-2", "E PB-2", "LG", "VM", "BC"],
-  fields: ["FECHA", "SEDE", "PRODUCTO", "CANTIDAD", "RESPONSABLE"],
-  // <-- Aquí debes pegar la línea
-  catalog: window.FORMS.find(f => f.id === "tata-libertad")?.catalog || [],
-},
-// ...siguiente formulario...}
+      }
     ]
   },
   {
-    id: "inventario-pt",
-    title: "INVENTARIO PRODUCTO TERMINADO",
-    sheetTab: "INVENTARIO DE PRODUCTO TERMINADO",
-    // Enviar a otro Spreadsheet específico para este formulario
-    ssurl: "https://docs.google.com/spreadsheets/d/1TlsAVq8pauOxwHHCWGL8I740pGZ5ftpYC3gwvEPo1eE/edit?gid=0#gid=0",
+    id: "solicitudes-pedido",
+    title: "LA TATA DE LA LIBERTAD SOLICITUDES",
+    sheetTab: "SOLICITUDES",
+    color: "#b8f1c4",
+    description: "Formulario de Operaciones de Manufactura. Solicitud de producto terminado a tiendas, sedes y ventas al mayor.",
+    inheritFrom: "tata-libertad"
+  },
+  {
+    id: "registros",
+    title: "Registros - INVENTARIO PRODUCTO TERMINADO",
+  sheetTab: "INVENTARIO DE PRODUCTO TERMINADO",
     color: "#e7e0f1", // lila
     description: "Registro de inventario de cierre y devoluciones.",
     sedes: [

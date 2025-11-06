@@ -17,28 +17,28 @@ export default async function handler(req, res) {
   try {
     // Allow overriding via query params (for quick setup/testing)
     const qBase = req.query.url;
-  const qToken = req.query.token;
-  const qFormId = req.query.formId;
+    const qToken = req.query.token;
     const base = (typeof qBase === 'string' && qBase) || process.env.GS_WEBAPP_URL;
     const token = (typeof qToken === 'string' ? qToken : '') || process.env.GS_TOKEN || "";
     if (!base) {
       return res.status(500).json({ ok: false, error: "Missing env GS_WEBAPP_URL" });
     }
 
-  const limit = Math.max(1, Math.min(500, Number(req.query.limit || 100)));
-  const sheet = typeof req.query.sheet === 'string' ? req.query.sheet : '';
-  const ssid = typeof req.query.ssid === 'string' ? req.query.ssid : '';
-  const ssurl = typeof req.query.ssurl === 'string' ? req.query.ssurl : '';
+    const limit = Math.max(1, Math.min(500, Number(req.query.limit || 100)));
+    const sheet = typeof req.query.sheet === 'string' ? req.query.sheet : '';
+    const ssid = typeof req.query.ssid === 'string' ? req.query.ssid : '';
+    const ssurl = typeof req.query.ssurl === 'string' ? req.query.ssurl : '';
+    const formId = typeof req.query.formId === 'string' ? req.query.formId : '';
 
     // Build Apps Script doGet URL: append ?op=list&limit=...&token=...
-  const target = new URL(base);
+    const target = new URL(base);
     target.searchParams.set("op", "list");
     target.searchParams.set("limit", String(limit));
     if (token) target.searchParams.set("token", token);
     if (sheet) target.searchParams.set("sheet", sheet);
     if (ssid) target.searchParams.set("ssid", ssid);
-  if (ssurl) target.searchParams.set("ssurl", ssurl);
-  if (typeof qFormId === 'string' && qFormId) target.searchParams.set("formId", qFormId);
+    if (ssurl) target.searchParams.set("ssurl", ssurl);
+    if (formId) target.searchParams.set("formId", formId);
 
     const gsRes = await fetch(target.toString(), { method: "GET" });
     const text = await gsRes.text();
