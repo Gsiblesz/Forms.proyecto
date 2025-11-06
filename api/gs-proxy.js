@@ -17,7 +17,8 @@ export default async function handler(req, res) {
   try {
     // Allow overriding via query params (for quick setup/testing)
     const qBase = req.query.url;
-    const qToken = req.query.token;
+  const qToken = req.query.token;
+  const qFormId = req.query.formId;
     const base = (typeof qBase === 'string' && qBase) || process.env.GS_WEBAPP_URL;
     const token = (typeof qToken === 'string' ? qToken : '') || process.env.GS_TOKEN || "";
     if (!base) {
@@ -36,7 +37,8 @@ export default async function handler(req, res) {
     if (token) target.searchParams.set("token", token);
     if (sheet) target.searchParams.set("sheet", sheet);
     if (ssid) target.searchParams.set("ssid", ssid);
-    if (ssurl) target.searchParams.set("ssurl", ssurl);
+  if (ssurl) target.searchParams.set("ssurl", ssurl);
+  if (typeof qFormId === 'string' && qFormId) target.searchParams.set("formId", qFormId);
 
     const gsRes = await fetch(target.toString(), { method: "GET" });
     const text = await gsRes.text();

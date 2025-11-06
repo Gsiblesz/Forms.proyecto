@@ -4,7 +4,7 @@
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
   <title>Registros — Entradas</title>
-  <link rel="stylesheet" href="./assets/styles.css" />
+  <link rel="stylesheet" href="./assets/styles.css?v=20251106b" />
   <style>
     .viewer {
       max-width: 100%;
@@ -120,7 +120,8 @@
       const qp = new URLSearchParams({ limit: String(limit) });
       const urlOverride = getQuery('url');
       const tokenOverride = getQuery('token');
-      const sheet = getQuery('sheet');
+  const sheet = getQuery('sheet');
+  const formId = getQuery('formId');
       const ssid = getQuery('ssid');
       const ssurl = getQuery('ssurl');
       if (urlOverride) {
@@ -135,8 +136,9 @@
       }
       if (tokenOverride) qp.set('token', tokenOverride);
       if (sheet) qp.set('sheet', sheet);
-      if (ssid) qp.set('ssid', ssid);
+  if (ssid) qp.set('ssid', ssid);
       if (ssurl) qp.set('ssurl', ssurl);
+  if (formId) qp.set('formId', formId);
       const url = `/api/gs-proxy?${qp.toString()}`;
       const res = await fetch(url);
       if (!res.ok) throw new Error(`HTTP ${res.status}`);

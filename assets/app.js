@@ -325,11 +325,12 @@ function main() {
     if (subEl) subEl.textContent = `Pestaña en Google Sheets: ${cfg.sheetTab}`;
   const descEl = document.getElementById("form-desc");
   if (descEl && cfg.description) descEl.textContent = cfg.description;
-    // Link del visor con sheet
+    // Link del visor con sheet (agrega formId y ssurl si aplica)
     const v = document.getElementById("viewer-link");
     if (v) {
       const link = new URL("./registros.html", location.href);
       link.searchParams.set("sheet", cfg.sheetTab);
+      if (cfg.id) link.searchParams.set("formId", cfg.id);
       if (cfg.ssurl) link.searchParams.set("ssurl", cfg.ssurl);
       v.href = link.toString();
     }
