@@ -3,37 +3,61 @@
   <head>
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
-    <title>Menú — Solicitudes y Registros</title>
+    <title>Sistema de Registros y Solicitudes</title>
     <link rel="stylesheet" href="./assets/styles.css" />
     <style>
-      .menu { max-width: 100%; margin: 80px auto 24px; padding: 16px; }
-  .tabs { display:flex; gap:12px; flex-wrap:wrap; margin: 12px 0 18px; }
-  .tab { appearance:none; border:1px solid var(--border); background:#0f1533; color:var(--text); padding:12px 18px; border-radius:999px; cursor:pointer; font-size:1rem; font-weight:600; }
-  .tab.active { background: var(--accent); color:#06112a; border-color: var(--accent); box-shadow: 0 0 0 2px rgba(79,140,255,0.2) inset; }
-      .grid { display:grid; grid-template-columns: repeat(auto-fit, minmax(280px, 1fr)); gap:16px; }
-      .card { border:1px solid var(--border); border-radius:16px; padding:16px; background:#0f0f12; min-height:180px; }
-      .card h3 { margin:0 0 10px; font-size:1.2rem; line-height:1.2; }
-      .card p { margin:6px 0 0; color: var(--muted); font-size: 0.9rem; }
-      .swatch { height:10px; border-radius:8px; margin-bottom:14px; }
-      .card a { display:inline-block; margin-top:12px; padding:8px 12px; font-size:0.9rem; }
-      @media (max-width: 768px) { .card { padding:12px; } .card h3 { font-size:1rem; } }
+      .menu {
+        max-width: 100%;
+        margin: 80px auto 24px;
+        padding: 16px;
+      }
+      .grid {
+        display: grid;
+        grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+        gap: 16px;
+      }
+      .card {
+        border: 1px solid var(--border);
+        border-radius: 16px;
+        padding: 16px;
+        background: #0f0f12;
+        min-height: 180px;
+      }
+      .card h3 {
+        margin: 0 0 10px;
+        font-size: 1.2rem;
+        line-height: 1.2;
+      }
+      .swatch {
+        height: 10px;
+        border-radius: 8px;
+        margin-bottom: 14px;
+      }
+      .card a {
+        display: inline-block;
+        margin-top: 12px;
+        padding: 8px 12px;
+        font-size: 0.9rem;
+      }
+      @media (max-width: 768px) {
+        .card {
+          padding: 12px;
+        }
+        .card h3 {
+          font-size: 1rem;
+        }
+      }
     </style>
   </head>
   <body>
-    <div class="brand" style="position:fixed; top:12px; left:16px; display:flex; gap:12px; align-items:center; z-index:10;">
-      <img id="brand-img" src="./assets/brand.png" alt="PAN DE TATA" onerror="this.src='./assets/brand.svg'" style="height:44px;width:auto;border-radius:6px;box-shadow:0 0 0 2px #000;background:#000" />
+    <div class="brand">
+      <img id="brand-img" src="./assets/brand.png" alt="PAN DE TATA" onerror="this.src='./assets/brand.svg'" />
     </div>
-    <main class="menu" style="margin-top:80px">
-      <h1>Elige una pestaña</h1>
-      <div class="tabs" role="tablist" aria-label="Tipos de formularios" style="display:none">
-        <button class="tab" role="tab" id="tab-solicitudes" data-tab="solicitudes" aria-controls="panel-cards">SOLICITUDES</button>
-        <button class="tab" role="tab" id="tab-registros" data-tab="registros" aria-controls="panel-cards">REGISTROS</button>
-        <button class="tab" role="tab" id="tab-merma" data-tab="merma" aria-controls="panel-cards">MERMA</button>
-      </div>
-
+    <main class="menu">
+      <h1>Sistema para hacer solicitudes y registros de productos</h1>
       <div id="auth" style="margin:16px 0; padding:12px; border:1px solid var(--border); border-radius:12px; background:#0f0f12;">
         <div id="auth-form">
-          <label>Bienvenido al menú de formularios de solicitudes y registros</label>
+          <label>Ingresa tu clave para continuar</label>
           <div style="display:flex; gap:8px; margin-top:8px; flex-wrap:wrap">
             <input id="pass" type="password" placeholder="Clave" style="padding:10px;border-radius:10px;border:1px solid var(--border);background:#0f1533;color:var(--text)" />
             <button id="enter" class="btn">Entrar</button>
@@ -47,227 +71,62 @@
           <button id="logout" class="btn danger" style="margin-left:8px">Salir</button>
         </div>
       </div>
-
-      <section id="panel-cards" class="grid" role="tabpanel" aria-labelledby="tab-solicitudes" style="display:none"></section>
-
-      <!-- Ajustes de Google Sheets (visible para Administrador) -->
-      <section id="settings" class="settings" style="display:none; margin-top:20px; padding:16px; border:1px solid var(--border); border-radius:12px; background:#0f0f12;">
-        <h3 style="margin:0 0 10px;">Ajustes de Google Sheets</h3>
-        <div style="display:grid; grid-template-columns: repeat(auto-fit, minmax(240px, 1fr)); gap:12px; align-items:end;">
-          <div>
-            <label style="display:block; font-size:12px; color:var(--muted); margin-bottom:6px;">Enviar a Google Sheets</label>
-            <input id="gs-enabled" type="checkbox" checked />
-          </div>
-          <div>
-            <label style="display:block; font-size:12px; color:var(--muted); margin-bottom:6px;">URL del Web App</label>
-            <input id="gs-url" type="text" placeholder="https://script.google.com/.../exec" style="width:100%; padding:10px 12px; border-radius:10px; border:1px solid var(--border); background:#0f1533; color:var(--text);" />
-          </div>
-          <div>
-            <label style="display:block; font-size:12px; color:var(--muted); margin-bottom:6px;">Token (opcional)</label>
-            <input id="gs-token" type="text" placeholder="Pasantias90" style="width:100%; padding:10px 12px; border-radius:10px; border:1px solid var(--border); background:#0f1533; color:var(--text);" />
-          </div>
+      <div class="grid" style="margin-bottom:32px">
+        <div class="card">
+          <div class="swatch" style="background:#f1c4b8"></div>
+          <h3>Solicitudes</h3>
+          <a class="btn" href="./index.html?form=solicitud-tata-libertad">Solicitud - LA TATA DE LA LIBERTAD</a>
         </div>
-        <div style="display:flex; gap:8px; margin-top:12px;">
-          <button id="save-settings" class="btn">Guardar</button>
-          <button id="test-settings" class="btn">Probar</button>
-          <button id="reset-settings" class="btn outline">Restablecer</button>
-          <span id="settings-msg" class="muted" style="margin-left:8px"></span>
+        <div class="card">
+          <div class="swatch" style="background:#b8f1c4"></div>
+          <h3>Registros</h3>
+          <a class="btn" href="./index.html?form=tata-libertad">Registro - LA TATA DE LA LIBERTAD</a>
+          <a class="btn" href="./index.html?form=inventario-pt">Inventario Producto Terminado</a>
         </div>
-      </section>
+      </div>
+      <div id="cards" class="grid" style="display:none"></div>
     </main>
-
     <div class="credit">Elaborado por el pasante de producción <strong>Gerardo Siblesz</strong></div>
-
     <script src="./assets/forms.js"></script>
     <script>
-  const ROLE_KEY = 'app_role';
-  const SETTINGS_KEY = 'gs_settings';
-
-      function getActiveTab() {
-        const u = new URL(window.location.href);
-        const t = (u.searchParams.get('tab') || 'solicitudes').toLowerCase();
-        return (t === 'registros') ? 'registros' : 'solicitudes';
-      }
-
-      function setActiveTab(tab) {
-        // marcar botón activo
-        document.querySelectorAll('.tab').forEach(btn => {
-          btn.classList.toggle('active', btn.dataset.tab === tab);
-          btn.setAttribute('aria-selected', btn.dataset.tab === tab ? 'true' : 'false');
-        });
-        // actualizar URL sin recargar
-        const u = new URL(window.location.href);
-        u.searchParams.set('tab', tab);
-        window.history.replaceState({}, '', u);
-        // render
-        renderCards(tab);
-      }
-
-      function renderCards(tab) {
-        const cont = document.getElementById('panel-cards');
-        if (!cont) return;
-        cont.innerHTML = '';
-  // Mostrar formularios por pestaña
-  let targetIds;
-  if (tab === 'registros') {
-    targetIds = ['solicitudes','registros'];
-  } else if (tab === 'merma') {
-    targetIds = ['merma'];
-  } else {
-    targetIds = ['solicitudes-pedido'];
-  }
-        const forms = (window.FORMS || []).filter(f => targetIds.includes(f.id));
-        forms.forEach(form => {
-          const url = new URL('./index.html', location.href);
-          url.searchParams.set('form', form.id);
-          const card = document.createElement('div');
-          card.className = 'card';
-          card.innerHTML = `
-            <div class="swatch" style="background:${form.color}"></div>
-            <h3>${form.title}</h3>
-            ${form.description ? `<p>${form.description}</p>` : ''}
-            <a class="btn" href="${url.toString()}">Abrir</a>
-          `;
-          cont.appendChild(card);
-        });
-      }
-
+      const ROLE_KEY = 'app_role';
+      const SETTINGS_KEY = 'gs_settings';
       function showRole(role) {
         const authForm = document.getElementById('auth-form');
         const authOk = document.getElementById('auth-ok');
-        const cards = document.getElementById('panel-cards');
+        const cards = document.getElementById('cards');
         const roleLabel = document.getElementById('role-label');
-        const tabs = document.querySelector('.tabs');
-        const settings = document.getElementById('settings');
         if (role) {
           authForm.style.display = 'none';
           authOk.style.display = '';
           roleLabel.textContent = role === 'admin' ? 'Rol: Administrador' : 'Rol: Trabajador';
           cards.style.display = '';
-          if (tabs) tabs.style.display = '';
-          if (settings) settings.style.display = (role === 'admin') ? '' : 'none';
-          setActiveTab(getActiveTab());
         } else {
           authForm.style.display = '';
           authOk.style.display = 'none';
           cards.style.display = 'none';
-          if (tabs) tabs.style.display = 'none';
-          if (settings) settings.style.display = 'none';
         }
       }
-
-      // Eventos de auth
-      document.addEventListener('DOMContentLoaded', () => {
-        const enterBtn = document.getElementById('enter');
-        const logoutBtn = document.getElementById('logout');
+      document.getElementById('enter').addEventListener('click', () => {
+        const p = document.getElementById('pass').value.trim();
         const msg = document.getElementById('auth-msg');
-        enterBtn?.addEventListener('click', () => {
-          const p = (document.getElementById('pass').value || '').trim();
-          if (p === 'LATATA10') {
-            localStorage.setItem(ROLE_KEY, 'worker');
-            msg.textContent = '';
-            showRole('worker');
-          } else if (p === 'TATADEPAN11') {
-            localStorage.setItem(ROLE_KEY, 'admin');
-            msg.textContent = '';
-            showRole('admin');
-          } else {
-            msg.textContent = 'Clave incorrecta';
-          }
-        });
-        logoutBtn?.addEventListener('click', () => {
-          localStorage.removeItem(ROLE_KEY);
-          showRole(null);
-        });
-
-        // Tabs
-        document.querySelectorAll('.tab').forEach(btn => {
-          btn.addEventListener('click', () => setActiveTab(btn.dataset.tab));
-        });
-
-        // Ajustes (admin)
-        const gsUrlInput = document.getElementById('gs-url');
-        const gsEnabledInput = document.getElementById('gs-enabled');
-        const gsTokenInput = document.getElementById('gs-token');
-        const saveBtn = document.getElementById('save-settings');
-        const testBtn = document.getElementById('test-settings');
-        const resetBtn = document.getElementById('reset-settings');
-        const settingsMsg = document.getElementById('settings-msg');
-
-        function loadSettingsUI() {
-          const s = JSON.parse(localStorage.getItem(SETTINGS_KEY) || '{}');
-          if (gsUrlInput) gsUrlInput.value = s.url || '';
-          if (gsEnabledInput) gsEnabledInput.checked = (s.enabled !== false);
-          if (gsTokenInput) gsTokenInput.value = s.token || '';
+        if (p === 'LATATA10') {
+          localStorage.setItem(ROLE_KEY, 'worker');
+          msg.textContent = '';
+          showRole('worker');
+        } else if (p === 'TATADEPAN11') {
+          localStorage.setItem(ROLE_KEY, 'admin');
+          msg.textContent = '';
+          showRole('admin');
+        } else {
+          msg.textContent = 'Clave incorrecta';
         }
-        function saveSettingsUI() {
-          const s = {
-            url: (gsUrlInput?.value || '').trim(),
-            enabled: !!(gsEnabledInput?.checked),
-            token: (gsTokenInput?.value || '').trim() || undefined,
-          };
-          localStorage.setItem(SETTINGS_KEY, JSON.stringify(s));
-          if (settingsMsg) settingsMsg.textContent = 'Ajustes guardados';
-          setTimeout(()=>{ if (settingsMsg) settingsMsg.textContent = ''; }, 2500);
-        }
-        function resetSettingsUI() {
-          // Valores por defecto del cliente
-          const defaults = {
-            url: 'https://script.google.com/macros/s/AKfycbwld5XjSBk3VBzSbZtpaWPk9MoWkeoRvTjdm0Sk66d6ie-D8ry4vYETZ2tlOth7TFYgag/exec',
-            enabled: true,
-            token: 'Pasantias90',
-          };
-          localStorage.setItem(SETTINGS_KEY, JSON.stringify(defaults));
-          loadSettingsUI();
-          if (settingsMsg) settingsMsg.textContent = 'Ajustes restablecidos';
-          setTimeout(()=>{ if (settingsMsg) settingsMsg.textContent = ''; }, 2500);
-        }
-
-        saveBtn?.addEventListener('click', saveSettingsUI);
-        resetBtn?.addEventListener('click', resetSettingsUI);
-        testBtn?.addEventListener('click', async () => {
-          const url = (gsUrlInput?.value || '').trim();
-          const token = (gsTokenInput?.value || '').trim();
-          if (!url) { settingsMsg.textContent = 'Ingresa la URL'; return; }
-          // Enviar un payload válido para el Web App: incluye meta con fecha/sede/tipo
-          const today = new Date();
-          const yyyy = today.getFullYear();
-          const mm = String(today.getMonth()+1).padStart(2,'0');
-          const dd = String(today.getDate()).padStart(2,'0');
-          const probe = {
-            id: 'test-' + Math.random().toString(36).slice(2,8),
-            at: new Date().toISOString(),
-            meta: {
-              fecha: `${yyyy}-${mm}-${dd}`,
-              sede: 'TEST',
-              responsable: 'AJUSTES',
-              tipo: 'SOLICITUD',
-            },
-            items: [{ product: 'PING', quantity: 1 }],
-            ...(token ? { token } : {}),
-          };
-          try {
-            const res = await fetch(url, {
-              method: 'POST',
-              headers: { 'Content-Type': 'text/plain;charset=utf-8' },
-              body: JSON.stringify(probe),
-              mode: 'cors',
-            });
-            const text = await res.text();
-            settingsMsg.textContent = `HTTP ${res.status}: ${text.slice(0,120)}...`;
-          } catch (err) {
-            settingsMsg.textContent = String(err);
-          }
-          setTimeout(()=>{ if (settingsMsg) settingsMsg.textContent = ''; }, 4000);
-        });
-
-        // Estado inicial
-        showRole(localStorage.getItem(ROLE_KEY));
-        if (localStorage.getItem(ROLE_KEY)) {
-          setActiveTab(getActiveTab());
-        }
-        loadSettingsUI();
       });
+      document.getElementById('logout').addEventListener('click', () => {
+        localStorage.removeItem(ROLE_KEY);
+        showRole(null);
+      });
+      showRole(localStorage.getItem(ROLE_KEY));
     </script>
   </body>
 </html>
