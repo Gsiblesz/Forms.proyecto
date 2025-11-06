@@ -687,8 +687,9 @@ function main() {
         const inp = document.getElementById('meta-sol-id');
         const toggle = () => {
           if (!chk || !inp) return;
-          inp.disabled = chk.checked && !inp.value;
-          inp.placeholder = chk.checked ? 'Se generará automáticamente' : 'Ej: SOL-1234';
+          // No deshabilitar el input: permite que el usuario ingrese un número si lo desea.
+          // Si ingresa número y la casilla está marcada, el envío forzará sinSolicitud=false.
+          inp.placeholder = chk.checked ? 'Se generará automáticamente (opcional)' : 'Ej: SOL-1234';
         };
         chk?.addEventListener('change', toggle);
         inp?.addEventListener('input', toggle);
@@ -942,7 +943,7 @@ function main() {
     }
     // Construir metadata mínima para firma y detección de duplicados
     const metaProbe = {
-      sede: document.getElementById("meta-sede").value.trim() || null,
+      sede: (document.getElementById("meta-sede").value || '').trim().toUpperCase() || null,
       responsable: document.getElementById("meta-resp").value.trim() || null,
       fecha: document.getElementById("meta-date").value || null,
       formId: cfg?.id || null,
@@ -1050,14 +1051,28 @@ function main() {
       sendResult = send;
       const backendOk = !(send && send.data && send.data.ok === false);
       if (send.sent && backendOk) {
-        // Si el backend respondió con count=0 en ENTREGADO normal (sin sinSolicitud), avisar al usuario
+        // Si el backend respondió con count=0 en ENTREGADO normal (sin sinSolicitud), intentar fallback automático una vez
         try {
           const cnt = Number(send.data && send.data.count);
           const isSolicitud = (meta?.tipo || '').toUpperCase() === 'SOLICITUD';
           const isSin = !!meta?.sinSolicitud;
           if (!isSolicitud && !isSin && Number.isFinite(cnt) && cnt === 0) {
-            updateResult(`<span style="color:#ffb3b3">No se encontró una SOLICITUD que coincida con FECHA+SEDE+PRODUCTO/CODIGO. No se actualizó ninguna fila.</span>`);
-            return;
+            // Fallback: convertir a "sin solicitud" y reintentar una vez
+            const selectedDate = document.getElementById("meta-date")?.value || '';
+            const ymd = (selectedDate || new Date().toISOString().slice(0,10)).replace(/-/g,'');
+            const rand = Math.random().toString(36).slice(2,6).toUpperCase();
+            const fallbackId = `SIN-SOL-${ymd}-${rand}`;
+            const retryMeta = { ...entry.meta, sinSolicitud: true, solicitudId: fallbackId };
+            const retryEntry = { ...entry, meta: retryMeta };
+            const retry = await maybeSendToSheets(retryEntry);
+            sendResult = retry; // para debug/eco
+            const retryOk = retry && retry.sent && !(retry.data && retry.data.ok === false);
+            if (!retryOk) {
+              updateResult(`<span style="color:#ffb3b3">No se encontró una SOLICITUD que coincida con FECHA+SEDE+PRODUCTO/CODIGO y el intento automático como "sin solicitud" falló.</span>`);
+              return;
+            }
+            // Marcar mensaje con nota de fallback
+            msg += " — procesado como ‘sin solicitud’ (automático)";
           }
         } catch {}
         // Registrar firma para bloquear reintentos idénticos por unos segundos
