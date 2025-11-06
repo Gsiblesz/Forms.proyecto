@@ -970,15 +970,12 @@ function main() {
       const selectedDate = document.getElementById("meta-date")?.value || '';
       const ymd = (selectedDate || new Date().toISOString().slice(0,10)).replace(/-/g,'');
       if (!solId && sinSol) {
+        // Solo generar SIN-SOL cuando el usuario marca la casilla
         const rand = Math.random().toString(36).slice(2,6).toUpperCase();
         solId = `SIN-SOL-${ymd}-${rand}`;
       }
-      if (!solId) {
-        // Si no hay número y tampoco marcaron la casilla, considerar igual como sin solicitud
-        sinSol = true;
-        const rand = Math.random().toString(36).slice(2,6).toUpperCase();
-        solId = `SIN-SOL-${ymd}-${rand}`;
-      }
+      // Si el usuario ingresó un número de solicitud, forzar sinSolicitud=false
+      if (solId && sinSol) sinSol = false;
       metaProbe.solicitudId = solId;
       metaProbe.sinSolicitud = sinSol;
     }
@@ -1053,6 +1050,16 @@ function main() {
       sendResult = send;
       const backendOk = !(send && send.data && send.data.ok === false);
       if (send.sent && backendOk) {
+        // Si el backend respondió con count=0 en ENTREGADO normal (sin sinSolicitud), avisar al usuario
+        try {
+          const cnt = Number(send.data && send.data.count);
+          const isSolicitud = (meta?.tipo || '').toUpperCase() === 'SOLICITUD';
+          const isSin = !!meta?.sinSolicitud;
+          if (!isSolicitud && !isSin && Number.isFinite(cnt) && cnt === 0) {
+            updateResult(`<span style="color:#ffb3b3">No se encontró una SOLICITUD que coincida con FECHA+SEDE+PRODUCTO/CODIGO. No se actualizó ninguna fila.</span>`);
+            return;
+          }
+        } catch {}
         // Registrar firma para bloquear reintentos idénticos por unos segundos
         localStorage.setItem(LAST_SUBMIT_KEY, JSON.stringify({ hash: signature, at: Date.now() }));
         if (send.via === "proxy") {
