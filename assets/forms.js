@@ -331,7 +331,7 @@ window.FORMS = [
   },
   {
     id: "registros",
-    title: "Registros - INVENTARIO PRODUCTO TERMINADO",
+    title: "INVENTARIO PRODUCTO TERMINADO",
   sheetTab: "INVENTARIO DE PRODUCTO TERMINADO",
     color: "#e7e0f1", // lila
     description: "Registro de inventario de cierre y devoluciones.",
@@ -484,6 +484,14 @@ window.FORMS = [
       "CROISSSANT CHOCO OSCURO 160 GR 1 UND ST": "UND",
       "HOJALDRE DE MANZANA 160 GR 1 UND ST": "UND"
     }
+  },
+  {
+    id: "merma",
+    title: "MERMA — LA TATA DE LA LIBERTAD",
+    sheetTab: "LA TATA DE LA LIBERTAD",
+    color: "#ffd7d7",
+    description: "Registro rápido de merma: fecha, producto y cantidad. La sede se fija a BELLO CAMPO.",
+    inheritFrom: "tata-libertad"
   },
 ];
 

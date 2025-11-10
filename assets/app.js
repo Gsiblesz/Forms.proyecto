@@ -633,8 +633,17 @@ function main() {
     }
     // Título y subtítulo
     const titleEl = document.getElementById("form-title");
-    if (titleEl) titleEl.textContent = cfg.title;
-    try { document.title = `${cfg.title} — Registro`; } catch {}
+    // Si estamos en la pestaña "registros" y es el formulario LA TATA, aplicar título especial
+    let effectiveTitle = cfg.title;
+    try {
+      const u2 = new URL(window.location.href);
+      const activeTab = (u2.searchParams.get('tab') || '').toLowerCase();
+      if ((cfg.id === 'tata-libertad') && activeTab === 'registros') {
+        effectiveTitle = 'LA TATA DE LA LIBERTAD REGISTROS';
+      }
+    } catch {}
+    if (titleEl) titleEl.textContent = effectiveTitle;
+    try { document.title = `${effectiveTitle} — Registro`; } catch {}
     const badgeEl = document.getElementById("form-badge");
     if (badgeEl) {
       badgeEl.textContent = cfg.title;
@@ -767,7 +776,7 @@ function main() {
       if (lbl) lbl.textContent = 'Entregado por';
       // Este formulario no tiene TIPO/FAMILIA, así que no añadimos controles extra.
     }
-    // Personalización por formulario: MERMA (solo producto y cantidad)
+    // Personalización por formulario: MERMA (fecha + producto + cantidad; sede fija a BC)
     if (cfg.id === 'merma') {
       QTY_LABEL = 'CANTIDAD';
       // Construir catálogo desde grupos heredados (de LA TATA)
@@ -783,15 +792,19 @@ function main() {
         }
         PRODUCT_CATALOG = flat;
       }
-      // Ocultar metadata (sede, responsable, fecha) y extras
-      const metaBox = document.querySelector('.meta');
-      if (metaBox) metaBox.style.display = 'none';
+      // Mantener visible la FECHA, ocultar SEDE y RESPONSABLE
+      const sedeInputFixed = document.getElementById('meta-sede');
+      const sedeWrap = sedeInputFixed ? sedeInputFixed.closest('div') : null;
+      if (sedeWrap) sedeWrap.style.display = 'none';
+      const respInput = document.getElementById('meta-resp');
+      const respWrap = respInput ? respInput.closest('div') : null;
+      if (respWrap) respWrap.style.display = 'none';
+      // Nota informativa
       const extra = document.getElementById('form-extra');
       if (extra) {
-        extra.innerHTML = '<small class="muted">MERMA aplica solo para la sede <strong>BELLO CAMPO</strong>.</small>';
+        extra.innerHTML = '<small class="muted">MERMA: la sede se fija automáticamente a <strong>BELLO CAMPO</strong>. Indica fecha, producto y cantidad.</small>';
       }
       // Forzar sede fija a BELLO CAMPO
-      const sedeInputFixed = document.getElementById('meta-sede');
       if (sedeInputFixed) sedeInputFixed.value = 'BELLO CAMPO';
     }
   }

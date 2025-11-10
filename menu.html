@@ -109,20 +109,26 @@
   // Mostrar formularios por pestaña
   let targetIds;
   if (tab === 'registros') {
-    // Mostrar el formulario de registro/entrega de LA TATA y el de Inventario PT
-    targetIds = ['tata-libertad','registros'];
+    // Mostrar los formularios de registros: entrega LA TATA, inventario y merma
+    targetIds = ['tata-libertad','registros','merma'];
   } else {
+    // Formularios de solicitud (pedido)
     targetIds = ['solicitudes-pedido'];
   }
         const forms = (window.FORMS || []).filter(f => targetIds.includes(f.id));
         forms.forEach(form => {
           const url = new URL('./index.html', location.href);
           url.searchParams.set('form', form.id);
+          // Override de título para LA TATA de registros (solo en pestaña registros)
+          let displayTitle = form.title;
+          if (tab === 'registros' && form.id === 'tata-libertad') {
+            displayTitle = 'LA TATA DE LA LIBERTAD REGISTROS';
+          }
           const card = document.createElement('div');
           card.className = 'card';
           card.innerHTML = `
             <div class="swatch" style="background:${form.color}"></div>
-            <h3>${form.title}</h3>
+            <h3>${displayTitle}</h3>
             ${form.description ? `<p>${form.description}</p>` : ''}
             <a class="btn" href="${url.toString()}">Abrir</a>
           `;

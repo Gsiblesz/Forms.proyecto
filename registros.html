@@ -162,11 +162,20 @@
       const HEAD_FALLBACK = ["entry_id","timestamp","fecha","code","product","quantity","sede","tipo","familia","responsable","form"]; // por defecto
       const head = Array.isArray(payload.head) && payload.head.length ? payload.head : HEAD_FALLBACK;
       const rows = Array.isArray(payload.rows) ? payload.rows : [];
+      const up = s => String(s||'').trim().toUpperCase();
+
+      // Ocultar visualmente las columnas de solicitud y su indicador
+      const hideNames = new Set(["SOLICITUD_ID", "SIN_SOLICITUD"]);
+      const displayIdx = head
+        .map((h, i) => ({ h, i }))
+        .filter(x => !hideNames.has(up(x.h)))
+        .map(x => x.i);
+      const displayHead = displayIdx.map(i => head[i]);
 
       // construir encabezado
       const theadRow = document.getElementById('thead-row');
       theadRow.innerHTML = '';
-      head.forEach(h => {
+      displayHead.forEach(h => {
         const th = document.createElement('th');
         th.textContent = h;
         theadRow.appendChild(th);
@@ -174,10 +183,10 @@
 
       const tb = document.querySelector('#tbl tbody');
       tb.innerHTML = '';
-      const up = s => String(s||'').trim().toUpperCase();
       const iSin = head.findIndex(h => up(h) === 'SIN_SOLICITUD');
       const iSol = head.findIndex(h => up(h) === 'SOLICITUD_ID');
-      const iCS = head.findIndex(h => up(h) === 'CANTIDAD SOLICITADA');
+  const iCS = head.findIndex(h => up(h) === 'CANTIDAD SOLICITADA');
+  const iRS = head.findIndex(h => up(h) === 'RESPONSABLE SOLICITUD');
       const iCE = head.findIndex(h => up(h) === 'CANTIDAD ENTREGADA');
       const iC  = head.findIndex(h => up(h) === 'CANTIDAD');
       const rowsRev = rows.slice().reverse(); // más recientes primero
@@ -189,15 +198,23 @@
         const tr = document.createElement('tr');
         // Detectar fila "sin solicitud"
         let isSin = false;
-        if (iSin >= 0 && iSin < arr.length) {
+        // Nueva regla: es "sin solicitud" cuando NO hay responsable de solicitud ni cantidad solicitada
+        const rsVal = (iRS >= 0 && iRS < arr.length) ? String(arr[iRS] ?? '').trim() : '';
+        const csRaw = (iCS >= 0 && iCS < arr.length) ? arr[iCS] : '';
+        const csNum = Number(csRaw);
+        const hasRS = rsVal.length > 0;
+        const hasCS = csRaw !== '' && isFinite(csNum) && csNum > 0;
+        isSin = (!hasRS && !hasCS);
+        // Compatibilidad: si vienen columnas antiguas, respétalas
+        if (!isSin && iSin >= 0 && iSin < arr.length) {
           const v = up(arr[iSin]);
           isSin = (v === 'SI' || v === 'TRUE' || v === '1');
-        } else if (iSol >= 0 && iSol < arr.length) {
+        } else if (!isSin && iSol >= 0 && iSol < arr.length) {
           const v = up(arr[iSol]);
           isSin = v.indexOf('SIN-SOL') === 0;
         }
         if (onlySin && !isSin) continue;
-        if (isSin) tr.classList.add('sin-solicitud');
+        // Ya no marcamos visualmente las filas sin solicitud (se elimina el indicador)
         const cs = (iCS >= 0 && iCS < arr.length) ? Number(arr[iCS] || 0) : 0;
         const ce = (iCE >= 0 && iCE < arr.length) ? Number(arr[iCE] || 0) : 0;
         const c  = (iC  >= 0 && iC  < arr.length) ? Number(arr[iC]  || 0) : 0;
@@ -206,9 +223,10 @@
         sumCE += (isFinite(ce) ? ce : 0);
         sumC  += (isFinite(c)  ? c  : 0);
         if (isSin) countSin += 1;
-        // número de columnas según head
-        arr.slice(0, head.length).forEach(v => {
+        // Pintar solo columnas visibles (excluye SOLICITUD_ID y SIN_SOLICITUD)
+        displayIdx.forEach(i => {
           const td = document.createElement('td');
+          const v = i < arr.length ? arr[i] : '';
           td.textContent = v == null ? '' : String(v);
           tr.appendChild(td);
         });
