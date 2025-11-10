@@ -18,17 +18,89 @@ const CONFIG = {
     }
   }
 };
-function _defaultRequiredHead_(){ return CONFIG.HEAD.concat(['MERMA','TIPO_MERMA']); }
+function _defaultRequiredHead_(){ return CONFIG.HEAD.concat(['MERMA']); }
 function _headFor(formId){ var t=CONFIG.TARGETS&&CONFIG.TARGETS[formId]; return (t&&Array.isArray(t.HEAD))?t.HEAD.slice(0):_defaultRequiredHead_(); }
 function _canonSede(raw){ const s=String(raw||'').trim().toUpperCase(); if(s==='BC'||s==='BELLO CAMPO') return 'BELLO CAMPO'; if(s==='E PB-2'||s==='E PB2'||s==='E PB') return 'E PB-2'; if(s==='PB'||s==='PALOS GRANDES'||s==='LOS PALOS GRANDES') return 'LOS PALOS GRANDES'; if(s==='SL'||s==='SAN LUIS') return 'SAN LUIS'; return s; }
 function doGet(e){ var p=(e&&e.parameter)||{}; var op=String(p.op||'').toLowerCase(); if(op!=='list') return ContentService.createTextOutput('OK').setMimeType(ContentService.MimeType.TEXT); if(CONFIG.TOKEN&&p.token&&p.token!==CONFIG.TOKEN) return _json({ok:false,error:'unauthorized'},401); try{ var formId=String(p.formId||''); var tgt=(CONFIG.TARGETS&&CONFIG.TARGETS[formId])||null; var ss=tgt?_resolveSpreadsheet(tgt.ssid,tgt.ssurl):_resolveSpreadsheet(p.ssid,p.ssurl); var sheetName=p.sheet||(tgt&&tgt.sheet)||CONFIG.SHEET; var head=_headFor(formId); var sh=_getOrCreateSheet(ss,sheetName,head); var lastRow=sh.getLastRow(); var lastCol=sh.getLastColumn()||head.length; var outHead=sh.getRange(1,1,1,lastCol).getValues()[0]; if(lastRow<=1) return _json({ok:true,head:outHead,rows:[]},200); var limit=Math.max(1,Math.min(500,Number(p.limit||100))); var rowCount=Math.min(limit,lastRow-1); var startRow=lastRow-rowCount+1; var rows=sh.getRange(startRow,1,rowCount,lastCol).getValues(); return _json({ok:true,head:outHead,rows:rows},200);}catch(err){ return _json({ok:false,error:String(err)},500);} }
 function doPost(e){ try{ var raw=(e&&e.postData&&e.postData.contents)||''; if(!raw) return _json({ok:false,error:'no body'},400); var payload=JSON.parse(raw); if(!payload||!payload.items||!payload.meta) return _json({ok:false,error:'bad payload'},400); var qToken=(e&&e.parameter&&e.parameter.token)||''; var token=payload.token||qToken||''; if(CONFIG.TOKEN&&token&&token!==CONFIG.TOKEN) return _json({ok:false,error:'invalid token'},401); var p=(e&&e.parameter)||{}; var formId=(payload.meta&&payload.meta.formId)||''; var tgt=(CONFIG.TARGETS&&CONFIG.TARGETS[formId])||null; var sheetName=(tgt&&tgt.sheet)||(payload.meta&&payload.meta.sheet)||p.sheet||CONFIG.SHEET; var ss=tgt?_resolveSpreadsheet(tgt.ssid,tgt.ssurl):_resolveSpreadsheet((payload.meta&&payload.meta.ssid)||p.ssid,(payload.meta&&payload.meta.ssurl)||p.ssurl); var tipoMeta=(payload.meta&&payload.meta.tipo)?String(payload.meta.tipo).toUpperCase():''; var res; if(tgt&&tgt.MODE==='append'){ res=appendInventario(payload,{ss:ss,sheetName:sheetName,head:tgt.HEAD}); } else if(tipoMeta==='MERMA'){ res=upsertMerma(payload,{ss:ss,sheetName:sheetName,head:_defaultRequiredHead_()}); } else { var tipo=(tipoMeta==='SOLICITUD')?'SOLICITUD':'ENTREGADO'; res=upsertOneSheet(payload,tipo,{ss:ss,sheetName:sheetName,head:_defaultRequiredHead_()}); } var debug=(p.debug==='1')||!!payload.debug; if(debug){ var first=(payload.items&&payload.items[0])||null; return _json({ok:true,sheet:res.sheet,count:res.count,idx:res.idx,firstItem:first},200);} return _json({ok:true,sheet:res.sheet,count:res.count},200);}catch(err){ return _json({ok:false,error:String(err)},500);} }
 function appendInventario(payload,opts){ var ss=opts.ss; var sheetName=opts.sheetName; var head=opts.head||['entry_id','FECHA','TIPO','SEDE','EMPRESA','CODIGO','UND','PRODUCTOS','RESPONSABLE','CANTIDAD']; var sh=_getOrCreateSheet(ss,sheetName,head); var idx=_ensureColumnsAndIndex_(sh,head); var entryId=String(payload.id||('e-'+Math.random().toString(36).slice(2,8))).toUpperCase(); var fecha=payload.meta&&payload.meta.fechaTxt?String(payload.meta.fechaTxt).trim():_asDateString(payload.meta&&payload.meta.fecha); var tipo=String(payload.meta&&payload.meta.tipo||'').toUpperCase(); var sede=_canonSede(payload.meta&&payload.meta.sede); var empresa=String(payload.meta&&payload.meta.familia||'').trim(); var resp=String(payload.meta&&payload.meta.responsable||'').trim(); var items=Array.isArray(payload.items)?payload.items:[]; var rows=[]; for(var i=0;i<items.length;i++){ var it=items[i]||{}; var codigo=String(it.code||'').trim(); var und=String(it.und||'').trim(); var prod=String(it.product||it.name||'').trim(); var qty=Number(it.quantity||0); var vals=new Array(head.length).fill(''); vals[idx['entry_id']-1]=entryId; vals[idx['FECHA']-1]=fecha||''; vals[idx['TIPO']-1]=tipo||''; vals[idx['SEDE']-1]=sede||''; vals[idx['EMPRESA']-1]=empresa||''; vals[idx['CODIGO']-1]=codigo||''; vals[idx['UND']-1]=und||''; vals[idx['PRODUCTOS']-1]=prod||''; vals[idx['RESPONSABLE']-1]=resp||''; vals[idx['CANTIDAD']-1]=qty; rows.push(vals);} if(rows.length){ var start=sh.getLastRow()+1; sh.getRange(start,1,rows.length,head.length).setValues(rows);} return {sheet:sheetName,count:rows.length,idx:idx}; }
-function upsertMerma(payload,opts){ var ss=(opts&&opts.ss)||SpreadsheetApp.openById(CONFIG.SPREADSHEET_ID); var sheetName=(opts&&opts.sheetName)||CONFIG.SHEET; var requiredHead=(opts&&opts.head)||_defaultRequiredHead_(); var sh=_getOrCreateSheet(ss,sheetName,requiredHead); var idx=_ensureColumnsAndIndex_(sh,requiredHead); var fecha=payload.meta&&payload.meta.fechaTxt?String(payload.meta.fechaTxt).trim():_asDateString(payload.meta&&payload.meta.fecha); var sede=_canonSede(payload.meta&&payload.meta.sede)||'BELLO CAMPO'; var tipoMerma=(payload.meta&&payload.meta.tipoMerma)?String(payload.meta.tipoMerma).trim():''; var values=sh.getDataRange().getValues(); var map={}; for(var r=2;r<=values.length;r++){ var row=values[r-1]; var f=_asDateString(row[idx['FECHA']-1]); var s=_canonSede(row[idx['SEDE']-1]); var c=idx['CODIGO']?_norm(row[idx['CODIGO']-1]):''; var p=idx['PRODUCTO']?_norm(row[idx['PRODUCTO']-1]):''; var idKey=_pref(c,p); if(f&&s&&idKey) map[f+'|'+s+'|'+idKey]=r; } var items=Array.isArray(payload.items)?payload.items:[]; var updates=0; for(var i=0;i<items.length;i++){ var it=items[i]||{}; var nombre=_norm(it.product||it.name); var codigo=_norm(it.code); var und=_norm(it.und); var qty=Number(it.quantity||0); var idKey=_pref(codigo,nombre); if(!idKey) continue; var fsKey=(fecha&&sede&&idKey)?(fecha+'|'+sede+'|'+idKey):''; var rowIndex=map[fsKey]||0; if(!rowIndex){ rowIndex=sh.getLastRow()+1; sh.insertRows(rowIndex,1); if(fecha) sh.getRange(rowIndex,idx['FECHA']).setValue(fecha); if(sede)  sh.getRange(rowIndex,idx['SEDE']).setValue(sede); if(nombre) sh.getRange(rowIndex,idx['PRODUCTO']).setValue(nombre); if(codigo) sh.getRange(rowIndex,idx['CODIGO']).setValue(codigo); if(und)    sh.getRange(rowIndex,idx['UND']).setValue(und); if(idx['CANTIDAD SOLICITADA']) sh.getRange(rowIndex,idx['CANTIDAD SOLICITADA']).setValue(''); if(idx['RESPONSABLE SOLICITUD']) sh.getRange(rowIndex,idx['RESPONSABLE SOLICITUD']).setValue(''); if(idx['CANTIDAD ENTREGADA']) sh.getRange(rowIndex,idx['CANTIDAD ENTREGADA']).setValue(''); if(idx['RESPONSABLE ENTREGA']) sh.getRange(rowIndex,idx['RESPONSABLE ENTREGA']).setValue(''); if(idx['MERMA']) sh.getRange(rowIndex,idx['MERMA']).setValue(qty); if(idx['TIPO_MERMA']&&tipoMerma) sh.getRange(rowIndex,idx['TIPO_MERMA']).setValue(tipoMerma); map[fsKey]=rowIndex; updates++; continue; } if(idx['MERMA']){ var cell=sh.getRange(rowIndex,idx['MERMA']); var cur=Number(cell.getValue()||0); var next=(Number.isFinite(cur)?cur:0)+qty; cell.setValue(next);} if(idx['TIPO_MERMA']&&tipoMerma){ sh.getRange(rowIndex,idx['TIPO_MERMA']).setValue(tipoMerma);} updates++; } return {sheet:sheetName,count:updates,idx:idx}; }
+function upsertMerma(payload,opts){
+  var ss=(opts&&opts.ss)||SpreadsheetApp.openById(CONFIG.SPREADSHEET_ID);
+  var sheetName=(opts&&opts.sheetName)||CONFIG.SHEET;
+  var requiredHead=(opts&&opts.head)||_defaultRequiredHead_();
+  var sh=_getOrCreateSheet(ss,sheetName,requiredHead);
+  // Asegurar que la columna obsoleta TIPO_MERMA no exista
+  _dropColumnByExactHeader_(sh,'TIPO_MERMA');
+  var idx=_ensureColumnsAndIndex_(sh,requiredHead);
+  var fecha=payload.meta&&payload.meta.fechaTxt?String(payload.meta.fechaTxt).trim():_asDateString(payload.meta&&payload.meta.fecha);
+  var sede=_canonSede(payload.meta&&payload.meta.sede)||'BELLO CAMPO';
+  var values=sh.getDataRange().getValues();
+  var map={};
+  for(var r=2;r<=values.length;r++){
+    var row=values[r-1];
+    var f=_asDateString(row[idx['FECHA']-1]);
+    var s=_canonSede(row[idx['SEDE']-1]);
+    var c=idx['CODIGO']?_norm(row[idx['CODIGO']-1]):'';
+    var p=idx['PRODUCTO']?_norm(row[idx['PRODUCTO']-1]):'';
+    var idKey=_pref(c,p);
+    if(f&&s&&idKey) map[f+'|'+s+'|'+idKey]=r;
+  }
+  var items=Array.isArray(payload.items)?payload.items:[];
+  var updates=0;
+  for(var i=0;i<items.length;i++){
+    var it=items[i]||{};
+    var nombre=_norm(it.product||it.name);
+    var codigo=_norm(it.code);
+    var und=_norm(it.und);
+    var qty=Number(it.quantity||0);
+    var idKey=_pref(codigo,nombre);
+    if(!idKey) continue;
+    var fsKey=(fecha&&sede&&idKey)?(fecha+'|'+sede+'|'+idKey):'';
+    var rowIndex=map[fsKey]||0;
+    if(!rowIndex){
+      rowIndex=sh.getLastRow()+1;
+      sh.insertRows(rowIndex,1);
+      if(fecha) sh.getRange(rowIndex,idx['FECHA']).setValue(fecha);
+      if(sede)  sh.getRange(rowIndex,idx['SEDE']).setValue(sede);
+      if(nombre) sh.getRange(rowIndex,idx['PRODUCTO']).setValue(nombre);
+      if(codigo) sh.getRange(rowIndex,idx['CODIGO']).setValue(codigo);
+      if(und)    sh.getRange(rowIndex,idx['UND']).setValue(und);
+      if(idx['CANTIDAD SOLICITADA']) sh.getRange(rowIndex,idx['CANTIDAD SOLICITADA']).setValue('');
+      if(idx['RESPONSABLE SOLICITUD']) sh.getRange(rowIndex,idx['RESPONSABLE SOLICITUD']).setValue('');
+      if(idx['CANTIDAD ENTREGADA']) sh.getRange(rowIndex,idx['CANTIDAD ENTREGADA']).setValue('');
+      if(idx['RESPONSABLE ENTREGA']) sh.getRange(rowIndex,idx['RESPONSABLE ENTREGA']).setValue('');
+      if(idx['MERMA']) sh.getRange(rowIndex,idx['MERMA']).setValue(qty);
+      map[fsKey]=rowIndex;
+      updates++;
+      continue;
+    }
+    if(idx['MERMA']){
+      var cell=sh.getRange(rowIndex,idx['MERMA']);
+      var cur=Number(cell.getValue()||0);
+      var next=(Number.isFinite(cur)?cur:0)+qty;
+      cell.setValue(next);
+    }
+    updates++;
+  }
+  return {sheet:sheetName,count:updates,idx:idx};
+}
 function upsertOneSheet(payload,tipo,opts){ var ss=(opts&&opts.ss)||SpreadsheetApp.openById(CONFIG.SPREADSHEET_ID); var sheetName=(opts&&opts.sheetName)||CONFIG.SHEET; var requiredHead=(opts&&opts.head)||_defaultRequiredHead_(); var sh=_getOrCreateSheet(ss,sheetName,requiredHead); var idx=_ensureColumnsAndIndex_(sh,requiredHead); var fecha=''; if(payload.meta&&payload.meta.fechaTxt) fecha=String(payload.meta.fechaTxt).trim(); else fecha=_asDateString(payload.meta&&payload.meta.fecha); var sede=_canonSede(payload.meta&&payload.meta.sede); var resp=_norm(payload.meta&&payload.meta.responsable); var solicitudId=(payload.meta&&payload.meta.solicitudId)?String(payload.meta.solicitudId):''; var sinSolicitud=!!(payload.meta&&payload.meta.sinSolicitud); var values=sh.getDataRange().getValues(); var keyToRowFS={}; var blockByFS={}; for(var r=2;r<=values.length;r++){ var row=values[r-1]; var f=_asDateString(row[idx['FECHA']-1]); var s=_canonSede(row[idx['SEDE']-1]); var c=idx['CODIGO']?_norm(row[idx['CODIGO']-1]):''; var p=idx['PRODUCTO']?_norm(row[idx['PRODUCTO']-1]):''; var idKey=_pref(c,p); if(f&&s){ keyToRowFS[f+'|'+s+'|'+idKey]=r; var fsOnly=f+'|'+s; if(!blockByFS[fsOnly]) blockByFS[fsOnly]={first:r,last:r}; else blockByFS[fsOnly].last=r; } } var updates=[]; var missing=[]; var items=Array.isArray(payload.items)?payload.items:[]; for(var i=0;i<items.length;i++){ var it=items[i]; var nombre=_norm(it&&(it.product||it.producto||it.name)); var codigo=_norm(it&&it.code); var und=_norm(it&&it.und); var qty=Number((it&&it.quantity)||0); var idKey=_pref(codigo,nombre); var fsKey=(fecha&&sede&&idKey)?(fecha+'|'+sede+'|'+idKey):''; var rowIndex=fsKey?keyToRowFS[fsKey]:null; if(tipo==='SOLICITUD'){ if(!rowIndex){ var placeKey=(fecha||'')+'|'+(sede||''); var block=blockByFS[placeKey]; var insertAt=((block&&block.last)||sh.getLastRow())+1; sh.insertRows(insertAt,1); rowIndex=insertAt; if(blockByFS[placeKey]) blockByFS[placeKey].last=rowIndex; else blockByFS[placeKey]={first:rowIndex,last:rowIndex}; if(fecha) sh.getRange(rowIndex,idx['FECHA']).setValue(fecha); if(sede) sh.getRange(rowIndex,idx['SEDE']).setValue(sede); if(nombre) sh.getRange(rowIndex,idx['PRODUCTO']).setValue(nombre); if(codigo) sh.getRange(rowIndex,idx['CODIGO']).setValue(codigo); if(und) sh.getRange(rowIndex,idx['UND']).setValue(und); if(fsKey) keyToRowFS[fsKey]=rowIndex; } sh.getRange(rowIndex,idx['CANTIDAD SOLICITADA']).setValue(qty); if(idx['RESPONSABLE SOLICITUD']) sh.getRange(rowIndex,idx['RESPONSABLE SOLICITUD']).setValue(resp); updates.push({row:rowIndex,tipo:tipo,qty:qty}); continue; } if(rowIndex){ if(idx['CANTIDAD ENTREGADA']) sh.getRange(rowIndex,idx['CANTIDAD ENTREGADA']).setValue(qty); if(idx['RESPONSABLE ENTREGA']) sh.getRange(rowIndex,idx['RESPONSABLE ENTREGA']).setValue(resp); updates.push({row:rowIndex,tipo:tipo,qty:qty}); continue; } if(sinSolicitud&&CONFIG.ALWAYS_CREATE_WHEN_SIN_SOLICITUD){ var placeKeyE=(fecha||'')+'|'+(sede||''); var blockE=blockByFS[placeKeyE]; var insertAtE=((blockE&&blockE.last)||sh.getLastRow())+1; sh.insertRows(insertAtE,1); rowIndex=insertAtE; if(blockByFS[placeKeyE]) blockByFS[placeKeyE].last=rowIndex; else blockByFS[placeKeyE]={first:rowIndex,last:rowIndex}; if(fecha) sh.getRange(rowIndex,idx['FECHA']).setValue(fecha); if(sede) sh.getRange(rowIndex,idx['SEDE']).setValue(sede); if(nombre) sh.getRange(rowIndex,idx['PRODUCTO']).setValue(nombre); if(codigo) sh.getRange(rowIndex,idx['CODIGO']).setValue(codigo); if(und) sh.getRange(rowIndex,idx['UND']).setValue(und); if(idx['CANTIDAD ENTREGADA']) sh.getRange(rowIndex,idx['CANTIDAD ENTREGADA']).setValue(qty); if(idx['RESPONSABLE ENTREGA']) sh.getRange(rowIndex,idx['RESPONSABLE ENTREGA']).setValue(resp); updates.push({row:rowIndex,tipo:tipo,qty:qty}); continue; } missing.push({key:fsKey,producto:nombre,codigo:codigo,qty:qty}); } return {sheet:sheetName,count:updates.length,missing:missing,idx:idx}; }
 function _json(obj,status){ return ContentService.createTextOutput(JSON.stringify(obj)).setMimeType(ContentService.MimeType.JSON); }
 function _resolveSpreadsheet(ssid,ssurl){ try{ if(ssid) return SpreadsheetApp.openById(ssid); if(ssurl){ var m=String(ssurl).match(/\/d\/([^/]+)/); if(m&&m[1]) return SpreadsheetApp.openById(m[1]); } }catch(e){} return SpreadsheetApp.openById(CONFIG.SPREADSHEET_ID); }
 function _getOrCreateSheet(ss,name,header){ var sh=ss.getSheetByName(name); if(!sh) sh=ss.insertSheet(name); var lastCol=sh.getLastColumn(); var existing=lastCol>0?sh.getRange(1,1,1,lastCol).getValues()[0]:[]; var need=header.slice(0); var changed=false; if(existing.length!==need.length) changed=true; else { for(var i=0;i<need.length;i++){ if(existing[i]!==need[i]){ changed=true; break; } } } if(changed){ sh.getRange(1,1,1,need.length).setValues([need]); sh.setFrozenRows(1);} return sh; }
+function _dropColumnByExactHeader_(sh,name){
+  try{
+    var lastCol=sh.getLastColumn();
+    if(lastCol<=0) return false;
+    var head=sh.getRange(1,1,1,lastCol).getValues()[0];
+    var targets=[];
+    for(var c=1;c<=head.length;c++){
+      if(String(head[c-1]).trim()===name){ targets.push(c); }
+    }
+    for(var i=targets.length-1;i>=0;i--){ sh.deleteColumn(targets[i]); }
+    return targets.length>0;
+  }catch(e){ return false; }
+}
 function _ensureColumnsAndIndex_(sh,requiredHead){ var lastCol=sh.getLastColumn(); var head=lastCol>0?sh.getRange(1,1,1,lastCol).getValues()[0]:[]; var map={}; for(var i=0;i<head.length;i++) map[head[i]]=i+1; var changed=false; for(var j=0;j<requiredHead.length;j++){ var name=requiredHead[j]; if(!map[name]){ head.push(name); map[name]=head.length; changed=true; } } if(changed){ sh.getRange(1,1,1,head.length).setValues([head]); sh.setFrozenRows(1);} var idx={}; for(var k=0;k<head.length;k++) idx[head[k]]=k+1; return idx; }
 function _norm(v){ return String(v==null?'':v).trim().toUpperCase(); }
 function _pref(a,b){ return a?a:b; }
