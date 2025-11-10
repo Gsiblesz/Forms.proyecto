@@ -34,6 +34,14 @@ async function saveToBackend(items) {
 
 ## Integración con Google Sheets (Apps Script)
 
+URL actual desplegada (puede cambiar en futuras versiones):
+
+```
+https://script.google.com/macros/s/AKfycby1kIfwBm7fH8kyZYii3RcxOYB9jZWnFUPRXrLDL1383YV1QwjPJJbFny3TDOvtebk-NQ/exec
+```
+
+Si se genera una nueva implementación en Apps Script, recuerda actualizar esta URL en `assets/app.js`, `app.js` y `menu.html` (función `resetSettingsUI`).
+
 El proyecto incluye una sección de “Integración con Google Sheets” en la página para enviar cada registro a una Web App de Apps Script.
 
 ### Pasos rápidos

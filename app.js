@@ -94,7 +94,7 @@ const SUBMIT_COOLDOWN_MS = 4_000;  // mantener botón deshabilitado X segundos t
 const ENABLE_LOCAL_SAVE = false;
 const STORAGE_KEY = "productos_registrados";
 const SETTINGS_KEY = "gs_settings"; // { url: string, enabled: boolean, token?: string }
-const DEFAULT_GS_URL = "https://script.google.com/macros/s/AKfycbxeF9N7dskfbDlx5RZgf1sJg7vqARW72kaCOPap2LysxR0mYTZHYrkoloEZ-6VR_DOHbA/exec"; // actualizado
+const DEFAULT_GS_URL = "https://script.google.com/macros/s/AKfycby1kIfwBm7fH8kyZYii3RcxOYB9jZWnFUPRXrLDL1383YV1QwjPJJbFny3TDOvtebk-NQ/exec"; // actualizado (2025-11-10)
 const DEFAULT_GS_TOKEN = "Pasantias90";
 const ROLE_KEY = "app_role"; // 'worker' | 'admin'
 
@@ -600,11 +600,11 @@ function main() {
       if (metaBox) metaBox.style.display = 'none';
       const extra = document.getElementById('form-extra');
       if (extra) {
-        extra.innerHTML = '<small class="muted">MERMA aplica solo para la sede <strong>BELLO CAMPO</strong>.</small>';
+        extra.innerHTML = '<small class="muted">MERMA aplica solo para la sede <strong>BC</strong> (BELLO CAMPO).</small>';
       }
       // Forzar sede fija a BELLO CAMPO
       const sedeInputFixed = document.getElementById('meta-sede');
-      if (sedeInputFixed) sedeInputFixed.value = 'BELLO CAMPO';
+  if (sedeInputFixed) sedeInputFixed.value = 'BC';
     }
   }
   // Personalización por formulario: INVENTARIO PRODUCTO TERMINADO (alias: registros)
