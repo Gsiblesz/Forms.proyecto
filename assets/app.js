@@ -333,12 +333,31 @@ function createRow(productId = "", quantity = "") {
     const val = prodSel?.value || '';
     const name = productDisplayName(val);
     const detected = familyForProduct(name) || '';
+    const currentForm = window?.CURRENT_FORM_ID || '';
+    const sinSolicitudChk = document.getElementById('meta-sin-solicitud');
+    const isSinSolicitud = sinSolicitudChk ? !!sinSolicitudChk.checked : false;
+    // Comportamiento especial para LA TATA DE LA LIBERTAD:
+    //  - Si NO es "registro sin solicitud" (isSinSolicitud === false) entonces la familia se aplica automáticamente
+    //    y se deshabilita aunque no se detecte (queda vacía si no la conocemos).
+    //  - Si es "registro sin solicitud" permitir editar manualmente (para no dejar espacios en blanco en Sheets).
+    if (currentForm === 'tata-libertad') {
+      if (!isSinSolicitud) {
+        if (detected) famInput.value = detected;
+        famInput.disabled = true;
+        famInput.title = detected ? `Familia (auto: ${detected})` : 'Familia (solo editable en registros sin solicitud)';
+      } else {
+        if (detected && !famInput.value) famInput.value = detected; // valor inicial, editable
+        famInput.disabled = false;
+        famInput.title = detected ? `Familia (auto, puedes editar)` : 'Familia';
+      }
+      return;
+    }
+    // Formulario de solicitudes-pedido (comportamiento original): deshabilitar solo si se detecta
     if (detected) {
       famInput.value = detected;
-      famInput.disabled = true; // si se reconoce, bloquear edición
+      famInput.disabled = true;
       famInput.title = `Familia (auto: ${detected})`;
     } else {
-      // permitir que el usuario seleccione manualmente
       if (!famInput.value) famInput.value = '';
       famInput.disabled = false;
       famInput.title = 'Familia';
@@ -582,6 +601,8 @@ function main() {
     cfg = formsList.find(f => f.id === DEFAULT_FORM_ID) || formsList[0];
   }
   if (cfg) {
+    // Exponer id de formulario actual para lógica contextual en filas
+    try { window.CURRENT_FORM_ID = cfg.id; } catch {}
     // Herencia opcional de otro formulario (para reutilizar catálogo/grupos/mapas)
     if (cfg.inheritFrom) {
       try {
@@ -641,6 +662,9 @@ function main() {
   // Personalización por formulario: LA TATA DE LA LIBERTAD (alias: solicitudes)
     if (cfg.id === 'tata-libertad' || cfg.id === 'solicitudes') {
       QTY_LABEL = 'CANTIDAD REGISTRADA';
+      // Mostrar columna de familia por fila y cargar sets de familias para auto-detección
+      SHOW_ROW_FAMILY = true;
+      loadFamilySets().catch(() => {});
       // Construir grupos y catálogo plano para mapear nombres
       if (Array.isArray(cfg.groups) && cfg.groups.length) {
         PRODUCT_GROUPS = cfg.groups;
@@ -690,6 +714,8 @@ function main() {
           // No deshabilitar el input: permite que el usuario ingrese un número si lo desea.
           // Si ingresa número y la casilla está marcada, el envío forzará sinSolicitud=false.
           inp.placeholder = chk.checked ? 'Se generará automáticamente (opcional)' : 'Ej: SOL-1234';
+          // Recalcular estado de familia por fila cuando cambia el modo sin-solicitud
+          try { document.querySelectorAll('.row .product').forEach(el => el.dispatchEvent(new Event('change'))); } catch {}
         };
         chk?.addEventListener('change', toggle);
         inp?.addEventListener('input', toggle);
