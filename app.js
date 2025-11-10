@@ -627,7 +627,7 @@ function main() {
               <option value="DEVOLUCIONES">DEVOLUCIONES</option>
             </select>
           </div>
-          <div id="empresa-wrap" style="display:none">
+          <div id="empresa-wrap" style="display:block">
             <label>Empresa</label>
             <select id="meta-familia">
               <option value="PANIFICADORA COSTA DORADA, C.A">PANIFICADORA COSTA DORADA, C.A</option>
@@ -670,40 +670,34 @@ function main() {
       const tipo = (tipoSel?.value || '').toUpperCase();
       const sede = (sedeInput?.value || '').trim().toUpperCase();
       const isDev = tipo === 'DEVOLUCIONES';
-      if (empresaWrap) {
-        empresaWrap.style.display = isDev ? '' : 'none';
-        if (!isDev && empresaSel) empresaSel.value = '';
-      }
+      // Siempre mostrar EMPRESA
+      if (empresaWrap) empresaWrap.style.display = '';
       if (devNote) devNote.style.display = isDev ? '' : 'none';
-      if (!isDev) {
-        // Inventario de cierre: usar catálogo LA TATA
-        CODE_MAP = cfg.codeMap || {};
-        UND_MAP = cfg.undMap || {};
-        applyCatalog((cfg.inventory && cfg.inventory.lata) ? cfg.inventory.lata : []);
-        setItemsVisible(true);
-        return;
+
+      // Si es devoluciones, solo permitir BELLO CAMPO
+      if (isDev) {
+        const isBelloCampo = sede === 'BELLO CAMPO' || sede === 'BC';
+        if (!isBelloCampo) {
+          setItemsVisible(false);
+          applyCatalog([]);
+          return;
+        }
       }
-      // Devoluciones: solo válido para BELLO CAMPO
-      const isBelloCampo = sede === 'BELLO CAMPO' || sede === 'BC';
-      if (!isBelloCampo) {
-        setItemsVisible(false);
-        applyCatalog([]);
-        return;
-      }
+
+      // Elegir catálogo según EMPRESA tanto para Inventario de Cierre como Devoluciones
       const emp = (empresaSel?.value || '').toUpperCase();
       if (emp === 'PANIFICADORA COSTA DORADA, C.A') {
         // Catálogo PDT (sin códigos específicos)
         CODE_MAP = {}; // no tenemos códigos PDT en este cliente
         UND_MAP = {};  // usar heurística
         applyCatalog((cfg.inventory && cfg.inventory.pdt) ? cfg.inventory.pdt : []);
-        setItemsVisible(true);
       } else {
         // Catálogo LA TATA
         CODE_MAP = cfg.codeMap || {};
         UND_MAP = cfg.undMap || {};
         applyCatalog((cfg.inventory && cfg.inventory.lata) ? cfg.inventory.lata : []);
-        setItemsVisible(true);
       }
+      setItemsVisible(true);
     }
     tipoSel?.addEventListener('change', syncState);
     empresaSel?.addEventListener('change', syncState);
