@@ -21,6 +21,7 @@ const CONFIG = {
   }
 };
 
+// Head por defecto incluyendo columna MERMA (se conserva para formularios de LA TATA)
 function _defaultRequiredHead_(){ return CONFIG.HEAD.concat(['MERMA']); }
 function _headFor(formId){ var t=CONFIG.TARGETS&&CONFIG.TARGETS[formId]; return (t&&Array.isArray(t.HEAD))?t.HEAD.slice(0):_defaultRequiredHead_(); }
 function _canonSede(raw){ const s=String(raw||'').trim().toUpperCase(); if(s==='BC'||s==='BELLO CAMPO') return 'BELLO CAMPO'; if(s==='E PB-2'||s==='E PB2'||s==='E PB') return 'E PB-2'; if(s==='PB'||s==='PALOS GRANDES'||s==='LOS PALOS GRANDES') return 'LOS PALOS GRANDES'; if(s==='SL'||s==='SAN LUIS') return 'SAN LUIS'; return s; }
@@ -86,6 +87,7 @@ function doPost(e){
     if(tgt&&tgt.MODE==='append'){
       res=appendInventario(payload,{ss:ss,sheetName:sheetName,head:tgt.HEAD});
     } else if(tipoMeta==='MERMA'){
+      // Flujo MERMA: usar HEAD por defecto (que ya incluye MERMA)
       res=upsertMerma(payload,{ss:ss,sheetName:sheetName,head:_defaultRequiredHead_()});
     } else {
       var tipo=(tipoMeta==='SOLICITUD')?'SOLICITUD':'ENTREGADO';
@@ -221,6 +223,8 @@ function upsertOneSheet(payload,tipo,opts){
   var sheetName=(opts&&opts.sheetName)||CONFIG.SHEET;
   var requiredHead=(opts&&opts.head)||_defaultRequiredHead_();
   var sh=_getOrCreateSheet(ss,sheetName,requiredHead);
+  // Limpiar columna obsoleta que no aplica a este formulario
+  _dropColumnByExactHeader_(sh,'TIPO_MERMA');
   var idx=_ensureColumnsAndIndex_(sh,requiredHead);
 
   var fecha='';

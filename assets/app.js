@@ -243,7 +243,7 @@ const SUBMIT_COOLDOWN_MS = 4_000;  // mantener botón deshabilitado X segundos t
 const ENABLE_LOCAL_SAVE = false;
 const STORAGE_KEY = "productos_registrados";
 const SETTINGS_KEY = "gs_settings"; // { url: string, enabled: boolean, token?: string }
-const DEFAULT_GS_URL = "https://script.google.com/macros/s/AKfycby52NfXQUtlfgNJwB---_MCIv0zH5WZbfLB4OwdeZ6S5hXEzmiUfc2K0lX1D5Owal0D5g/exec"; // actualizado (2025-11-11)
+const DEFAULT_GS_URL = "https://script.google.com/macros/s/AKfycbwfa2BvwXp6bYiOHVktUPMUTIptsbIAQcFmbhZ7n7ZP5vh_ngl9qaRyvHmkBVguClLtcw/exec"; // actualizado (2025-11-11)
 const DEFAULT_GS_TOKEN = "Pasantias90";
 const ROLE_KEY = "app_role"; // 'worker' | 'admin'
 
