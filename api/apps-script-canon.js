@@ -28,6 +28,18 @@ function _canonSede(raw){ const s=String(raw||'').trim().toUpperCase(); if(s==='
 function doGet(e){
   var p=(e&&e.parameter)||{};
   var op=String(p.op||'').toLowerCase();
+  if(op==='fix'){
+    // Modo mantenimiento: reordenar físicamente columnas del target solicitado
+    if(CONFIG.TOKEN&&p.token&&p.token!==CONFIG.TOKEN) return _json({ok:false,error:'unauthorized'},401);
+    try{
+      var formIdFix=String(p.formId||'');
+      var tgtFix=(CONFIG.TARGETS&&CONFIG.TARGETS[formIdFix])||null;
+      if(!tgtFix) return _json({ok:false,error:'unknown formId'},400);
+      var ssFix=_resolveSpreadsheet(tgtFix.ssid,tgtFix.ssurl);
+      var out=fixSheetToHead_(ssFix,tgtFix.sheet,tgtFix.HEAD);
+      return _json({ok:true,fixed:true,sheet:out.sheet,rows:out.rows,head:out.head},200);
+    }catch(err){ return _json({ok:false,error:String(err)},500); }
+  }
   if(op!=='list') return ContentService.createTextOutput('OK').setMimeType(ContentService.MimeType.TEXT);
   if(CONFIG.TOKEN&&p.token&&p.token!==CONFIG.TOKEN) return _json({ok:false,error:'unauthorized'},401);
   try{
@@ -332,6 +344,8 @@ function _reconcileHeaderAndOrder_(sh, requiredHead){
   try{
     var lc=sh.getLastColumn();
     if(lc<=0) return;
+    // Eliminar filtro activo si impide mover columnas
+    try{ var filter=sh.getFilter&&sh.getFilter(); if(filter) filter.remove(); }catch(_){ }
     var cur=sh.getRange(1,1,1,lc).getValues()[0];
     // Normaliza sinónimos conocidos
     for(var c=0;c<cur.length;c++){
@@ -370,6 +384,46 @@ function _reconcileHeaderAndOrder_(sh, requiredHead){
     sh.getRange(1,1,1,requiredHead.length).setValues([requiredHead]);
     sh.setFrozenRows(1);
   }catch(e){ /* no-op si no se puede reordenar */ }
+}
+
+// Crea una hoja temporal con el HEAD requerido, copia los datos mapeando columnas por nombre y reemplaza la original
+function fixSheetToHead_(ss, sheetName, requiredHead){
+  var sh=ss.getSheetByName(sheetName);
+  if(!sh) throw new Error('sheet not found: '+sheetName);
+  var data=sh.getDataRange().getValues();
+  if(data.length===0){
+    // crear encabezado si estaba vacía
+    sh.getRange(1,1,1,requiredHead.length).setValues([requiredHead]);
+    return {sheet:sheetName,rows:0,head:requiredHead};
+  }
+  var curHead=data[0];
+  // mapa nombre -> index 0-based
+  var map={};
+  for(var i=0;i<curHead.length;i++){ map[String(curHead[i]).trim()]=i; }
+  // construir salida
+  var outRows=[];
+  for(var r=1;r<data.length;r++){
+    var row=data[r];
+    var out=new Array(requiredHead.length).fill('');
+    for(var c=0;c<requiredHead.length;c++){
+      var name=requiredHead[c];
+      var idx=map[name];
+      if(idx!=null && idx>=0 && idx<row.length){ out[c]=row[idx]; }
+    }
+    outRows.push(out);
+  }
+  var tmpName=sheetName+'__FIX_TMP';
+  var tmp=ss.getSheetByName(tmpName); if(tmp) ss.deleteSheet(tmp);
+  tmp=ss.insertSheet(tmpName);
+  tmp.getRange(1,1,1,requiredHead.length).setValues([requiredHead]);
+  tmp.setFrozenRows(1);
+  if(outRows.length) tmp.getRange(2,1,outRows.length,requiredHead.length).setValues(outRows);
+  // Reemplaza: renombra original y luego renombra tmp
+  var oldName=sheetName+'__OLD_'+(new Date().getTime());
+  ss.setActiveSheet(sh);
+  sh.setName(oldName);
+  tmp.setName(sheetName);
+  return {sheet:sheetName,rows:outRows.length,head:requiredHead};
 }
 
 function _dropColumnByExactHeader_(sh,name){
