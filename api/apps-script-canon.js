@@ -37,6 +37,8 @@ function doGet(e){
     var sheetName=p.sheet||(tgt&&tgt.sheet)||CONFIG.SHEET;
     var head=_headFor(formId);
     var sh=_getOrCreateSheet(ss,sheetName,head);
+    // Si es un target específico, reconciliar nombre y orden de columnas (p.ej. PRODUCTO/PRODUCTOS, orden esperado)
+    if(tgt){ _reconcileHeaderAndOrder_(sh, head); }
     var lastRow=sh.getLastRow();
     var lastCol=sh.getLastColumn()||head.length;
     if(tgt){ lastCol=Math.min(lastCol,head.length); } // limitar al HEAD del target
@@ -93,6 +95,8 @@ function appendInventario(payload,opts){
   var sheetName=opts.sheetName;
   var head=opts.head||['entry_id','FECHA','TIPO','SEDE','EMPRESA','CODIGO','PRODUCTO','UND','CANTIDAD','RESPONSABLE'];
   var sh=_getOrCreateSheet(ss,sheetName,head);
+  // Asegura que la hoja tenga exactamente los encabezados esperados y en ese orden
+  _reconcileHeaderAndOrder_(sh, head);
   var idx=_ensureColumnsAndIndex_(sh,head);
 
   var entryId=String(payload.id||('e-'+Math.random().toString(36).slice(2,8))).toUpperCase();
@@ -321,6 +325,51 @@ function _getOrCreateSheet(ss,name,header){
   else { for(var i=0;i<need.length;i++){ if(existing[i]!==need[i]){ changed=true; break; } } }
   if(changed){ sh.getRange(1,1,1,need.length).setValues([need]); sh.setFrozenRows(1);}
   return sh;
+}
+
+// Reconcilia diferencias de encabezados y reordena físicamente las columnas para que coincidan con "requiredHead"
+function _reconcileHeaderAndOrder_(sh, requiredHead){
+  try{
+    var lc=sh.getLastColumn();
+    if(lc<=0) return;
+    var cur=sh.getRange(1,1,1,lc).getValues()[0];
+    // Normaliza sinónimos conocidos
+    for(var c=0;c<cur.length;c++){
+      if(String(cur[c]).trim().toUpperCase()==='PRODUCTOS'){
+        cur[c]='PRODUCTO';
+        sh.getRange(1,c+1).setValue('PRODUCTO');
+      }
+    }
+    // Asegura existencia de todas las columnas requeridas (si falta alguna, insertarla en su posición)
+    for(var i=0;i<requiredHead.length;i++){
+      var name=requiredHead[i];
+      var idx=-1;
+      for(var j=0;j<cur.length;j++){ if(String(cur[j]).trim()===name){ idx=j; break; } }
+      if(idx===-1){
+        sh.insertColumnBefore(i+1);
+        sh.getRange(1,i+1).setValue(name);
+        cur.splice(i,0,name);
+      }
+    }
+    // Reordenar columnas según requiredHead
+    // Nota: mover de izquierda a derecha recalculando índices tras cada movimiento
+    for(var i2=0;i2<requiredHead.length;i2++){
+      var want=requiredHead[i2];
+      var curIdx=-1;
+      for(var j2=0;j2<cur.length;j2++){ if(String(cur[j2]).trim()===want){ curIdx=j2; break; } }
+      var dest=i2; // 0-based
+      if(curIdx!==-1 && curIdx!==dest){
+        // mover columna curIdx+1 a posición dest+1
+        sh.moveColumns(sh.getRange(1,curIdx+1,sh.getMaxRows(),1), dest+1);
+        // Actualiza arreglo cur al nuevo orden
+        var moved=cur.splice(curIdx,1)[0];
+        cur.splice(dest,0,moved);
+      }
+    }
+    // Escribe los encabezados exactamente como requiredHead en las primeras N columnas
+    sh.getRange(1,1,1,requiredHead.length).setValues([requiredHead]);
+    sh.setFrozenRows(1);
+  }catch(e){ /* no-op si no se puede reordenar */ }
 }
 
 function _dropColumnByExactHeader_(sh,name){
