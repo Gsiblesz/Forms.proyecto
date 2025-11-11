@@ -317,13 +317,13 @@ function _resolveSpreadsheet(ssid,ssurl){
 function _getOrCreateSheet(ss,name,header){
   var sh=ss.getSheetByName(name);
   if(!sh) sh=ss.insertSheet(name);
-  var lastCol=sh.getLastColumn();
-  var existing=lastCol>0?sh.getRange(1,1,1,lastCol).getValues()[0]:[];
-  var need=header.slice(0);
-  var changed=false;
-  if(existing.length!==need.length) changed=true;
-  else { for(var i=0;i<need.length;i++){ if(existing[i]!==need[i]){ changed=true; break; } } }
-  if(changed){ sh.getRange(1,1,1,need.length).setValues([need]); sh.setFrozenRows(1);}
+  // Sólo inicializa encabezados si la hoja está vacía (no pisa hojas existentes)
+  var lastRow=sh.getLastRow();
+  if(lastRow<=0){
+    var need=header.slice(0);
+    sh.getRange(1,1,1,need.length).setValues([need]);
+    sh.setFrozenRows(1);
+  }
   return sh;
 }
 
