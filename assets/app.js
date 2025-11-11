@@ -5,6 +5,9 @@ let PRODUCT_GROUPS = null; // [{label, products:[string]}]
 let QTY_LABEL = 'Cantidad'; // texto del label para el campo cantidad en las filas
 let CODE_MAP = {}; // opcional por formulario: { nombreProducto: codigo }
 let UND_MAP = {};  // opcional por formulario: { nombreProducto: 'UND'|'PAQ'|'CAJ'|'KG' }
+// Catálogo de códigos/unidades cargado desde TSV (cache)
+let CODE_TSV_READY = false;
+let CODE_TSV_DATA = { names: [], codeMap: {}, undMap: {} };
 
 // Familias auto-detectadas (DONAS, HOJALDRE, PANADERIA)
 const FAMILY_SETS = { DONAS: new Set(), HOJALDRE: new Set(), PANADERIA: new Set() };
@@ -48,6 +51,44 @@ async function loadFamilySets() {
     FAMILIES_LOADED = false; // seguimos, la UI funciona sin familia
   }
 }
+
+// Carga catálogo de códigos y unidades desde TSV: CODIGOS, DESCRIPCION, Unidad_Primaria
+async function loadCodesFromTSV() {
+  if (CODE_TSV_READY) return CODE_TSV_DATA;
+  try {
+    const path = './assets/CODIGOS%20DESCRIPCION%20Unidad_Primaria.tsv';
+    const txt = await fetch(path).then(r => r.ok ? r.text() : '');
+    if (!txt) { CODE_TSV_READY = true; return CODE_TSV_DATA; }
+    const lines = txt.split(/\r?\n/).filter(l => l.trim().length);
+    // Detectar encabezados
+    const head = (lines.shift() || '').split('\t').map(s => s.trim());
+    const idxCod = head.findIndex(h => /CODIGOS/i.test(h));
+    const idxDesc = head.findIndex(h => /DESCRIPCION/i.test(h));
+    const idxUnd = head.findIndex(h => /Unidad/i.test(h));
+    const names = [];
+    const codeMap = {};
+    const undMap = {};
+    for (const line of lines) {
+      const parts = line.split('\t');
+      const code = String(parts[idxCod] || '').trim();
+      const name = String(parts[idxDesc] || '').trim();
+      const und = String(parts[idxUnd] || '').trim().toUpperCase();
+      if (!name) continue;
+      names.push(name);
+      if (code) codeMap[name] = code;
+      if (und) undMap[name] = und;
+    }
+    CODE_TSV_DATA = { names, codeMap, undMap };
+    CODE_TSV_READY = true;
+  } catch (e) {
+    console.warn('No se pudo cargar el TSV de códigos:', e);
+    CODE_TSV_READY = true; // evitar reintentos agresivos
+  }
+  return CODE_TSV_DATA;
+}
+
+// Lanzar precarga oportunista de TSV en segundo plano
+try { loadCodesFromTSV().catch(() => {}); } catch {}
 
 function familyForProduct(name) {
   const n = String(name || '').trim();
@@ -202,7 +243,7 @@ const SUBMIT_COOLDOWN_MS = 4_000;  // mantener botón deshabilitado X segundos t
 const ENABLE_LOCAL_SAVE = false;
 const STORAGE_KEY = "productos_registrados";
 const SETTINGS_KEY = "gs_settings"; // { url: string, enabled: boolean, token?: string }
-const DEFAULT_GS_URL = "https://script.google.com/macros/s/AKfycbwp50uqquRjMkOsvNCOBVRFBW5ctwEvCUc0xBcryohJnCN6Rd4nGo35lSikAXWs79V4Hw/exec"; // actualizado (2025-11-11)
+const DEFAULT_GS_URL = "https://script.google.com/macros/s/AKfycbwsyrYCY1WizGVH-xKBXwXRBpLBq1ztklNi8ggGe_CYpPMnQQatghjHn1IoSHnNLk7gNg/exec"; // actualizado (2025-11-11)
 const DEFAULT_GS_TOKEN = "Pasantias90";
 const ROLE_KEY = "app_role"; // 'worker' | 'admin'
 
@@ -211,12 +252,19 @@ function productNameFor(id) {
 }
 
 function codeForProduct(name) {
+  // 1) Priorizar CODE_MAP explícito
   if (name && CODE_MAP && Object.prototype.hasOwnProperty.call(CODE_MAP, name)) {
     return CODE_MAP[name];
   }
-  // si el catálogo usa {id: codigo, name: nombre}
+  // 2) Solo usar el id del catálogo si realmente parece un código (no un nombre)
   const p = PRODUCT_CATALOG.find(p => p.name === name);
-  if (p && p.id && /^([A-Z]{2,}|ST|PT)/.test(p.id)) return p.id;
+  if (p && p.id && isCodeLike(p.id)) return p.id;
+  // 3) Fallback: si el TSV ya está cargado, usarlo como apoyo
+  try {
+    const c = CODE_TSV_DATA && CODE_TSV_DATA.codeMap ? CODE_TSV_DATA.codeMap[name] : '';
+    if (c) return c;
+  } catch {}
+  // 4) En caso contrario, sin código
   return "";
 }
 
@@ -224,6 +272,11 @@ function undForProduct(name) {
   if (name && UND_MAP && Object.prototype.hasOwnProperty.call(UND_MAP, name)) {
     return UND_MAP[name];
   }
+  // Fallback: TSV si está disponible
+  try {
+    const u = CODE_TSV_DATA && CODE_TSV_DATA.undMap ? CODE_TSV_DATA.undMap[name] : '';
+    if (u) return u;
+  } catch {}
   // heurística mínima de respaldo
   const p = String(name || '').toUpperCase();
   if (p.includes('CAJA')) return 'CAJ';
@@ -888,10 +941,19 @@ function main() {
       // Elegir catálogo según EMPRESA tanto para Inventario de Cierre como Devoluciones
       const emp = (empresaSel?.value || '').toUpperCase();
       if (emp === 'PANIFICADORA COSTA DORADA, C.A') {
-        // Catálogo PDT (sin códigos específicos)
-        CODE_MAP = {}; // no tenemos códigos PDT en este cliente
-        UND_MAP = {};  // usar heurística
-        applyCatalog((cfg.inventory && cfg.inventory.pdt) ? cfg.inventory.pdt : []);
+        // Cargar catálogo desde TSV para PANIFICADORA
+        loadCodesFromTSV().then(data => {
+          CODE_MAP = data.codeMap || {};
+          UND_MAP = data.undMap || {};
+          const names = Array.isArray(data.names) && data.names.length
+            ? data.names
+            : ((cfg.inventory && cfg.inventory.pdt) ? cfg.inventory.pdt : []);
+          applyCatalog(names);
+        }).catch(() => {
+          CODE_MAP = {};
+          UND_MAP = {};
+          applyCatalog((cfg.inventory && cfg.inventory.pdt) ? cfg.inventory.pdt : []);
+        });
       } else {
         // Catálogo LA TATA
         CODE_MAP = cfg.codeMap || {};
@@ -1045,6 +1107,8 @@ function main() {
     const meta = metaProbe;
     let sendResult = null;
     try {
+      // Garantizar que el TSV esté cargado para fallback de códigos/unidades
+      try { await loadCodesFromTSV(); } catch {}
       // enriquecer con código y unidad por producto
       const itemsWithCode = items.map(it => {
         const raw = String(it.product || '').trim();
