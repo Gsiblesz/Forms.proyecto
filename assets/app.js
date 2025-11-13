@@ -941,18 +941,26 @@ function main() {
       // Elegir catálogo según EMPRESA tanto para Inventario de Cierre como Devoluciones
       const emp = (empresaSel?.value || '').toUpperCase();
       if (emp === 'PANIFICADORA COSTA DORADA, C.A') {
-        // Cargar catálogo desde TSV para PANIFICADORA
+        // PANIFICADORA: mostrar SOLO la lista curada inventory.pdt (líneas 383-416 en forms.js)
+        // Enriquecer códigos y unidades desde el TSV grande si existen; si no, dejar sin código.
+        const curated = (cfg.inventory && cfg.inventory.pdt) ? cfg.inventory.pdt.slice(0) : [];
         loadCodesFromTSV().then(data => {
-          CODE_MAP = data.codeMap || {};
-          UND_MAP = data.undMap || {};
-          const names = Array.isArray(data.names) && data.names.length
-            ? data.names
-            : ((cfg.inventory && cfg.inventory.pdt) ? cfg.inventory.pdt : []);
-          applyCatalog(names);
-        }).catch(() => {
+          const tsvCodes = data.codeMap || {};
+          const tsvUnds  = data.undMap  || {};
           CODE_MAP = {};
-          UND_MAP = {};
-          applyCatalog((cfg.inventory && cfg.inventory.pdt) ? cfg.inventory.pdt : []);
+          UND_MAP  = {};
+          curated.forEach(name => {
+            const code = tsvCodes[name] || (cfg.codeMap ? cfg.codeMap[name] : undefined);
+            if (code) CODE_MAP[name] = code;
+            const und  = tsvUnds[name] || (cfg.undMap ? cfg.undMap[name] : undefined);
+            if (und) UND_MAP[name] = und.toUpperCase();
+          });
+          applyCatalog(curated);
+        }).catch(() => {
+          // Fallback: sin TSV, usar lista curada sin códigos adicionales
+          CODE_MAP = {};
+          UND_MAP  = {};
+          applyCatalog(curated);
         });
       } else {
         // Catálogo LA TATA
