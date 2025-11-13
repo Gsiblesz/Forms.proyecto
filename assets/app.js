@@ -243,7 +243,7 @@ const SUBMIT_COOLDOWN_MS = 4_000;  // mantener botón deshabilitado X segundos t
 const ENABLE_LOCAL_SAVE = false;
 const STORAGE_KEY = "productos_registrados";
 const SETTINGS_KEY = "gs_settings"; // { url: string, enabled: boolean, token?: string }
-const DEFAULT_GS_URL = "https://script.google.com/macros/s/AKfycbzJiNLPzQvEwKN0SIvrqGZptO1vTrfF4sLg7yUT_GsbwvuTZqG2vMPvIA9HlgO4deq24A/exec"; // actualizado (2025-11-13)
+const DEFAULT_GS_URL = "https://script.google.com/macros/s/AKfycbyEF6w-rh-7tGl90QYSAmX7o4bnOX3sMy3n-h4VLN9Xt1-rSTtqlp3oc75n3gkGO-RF/exec"; // actualizado (2025-11-13)
 const DEFAULT_GS_TOKEN = "Pasantias90";
 const ROLE_KEY = "app_role"; // 'worker' | 'admin'
 
@@ -1013,6 +1013,22 @@ function main() {
     } catch { return null; }
   }
 
+  // Reloj visible: hora actual de Caracas en el front
+  function updateVEClock() {
+    try {
+      const el = document.getElementById('meta-hora-caracas');
+      if (!el) return;
+      const ve = getTZParts('America/Caracas');
+      if (!ve) return;
+      const hh = String(ve.hour||'00').padStart(2,'0');
+      const mm = String(ve.minute||'00').padStart(2,'0');
+      el.textContent = `${hh}:${mm}`;
+    } catch {}
+  }
+  // Actualizar al cargar y cada minuto
+  updateVEClock();
+  try { setInterval(updateVEClock, 60 * 1000); } catch {}
+
   // Botón rápido para establecer la fecha de hoy (dd-mm-aaaa)
   if (setTodayBtn) {
     setTodayBtn.addEventListener("click", () => {
@@ -1021,6 +1037,8 @@ function main() {
       const iso = `${ve.day||'01'}-${ve.month||'01'}-${ve.year||'1970'}`;
       const dateInput = document.getElementById("meta-date");
       if (dateInput) dateInput.value = iso;
+      // actualizar reloj visible
+      updateVEClock();
     });
   }
   if (setYesterdayBtn) {

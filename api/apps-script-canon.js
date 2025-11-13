@@ -134,10 +134,15 @@ function appendInventario(payload,opts){
     }
   }catch(_){ _reconcileHeaderAndOrder_(sh, head); }
   var idx=_ensureColumnsAndIndex_(sh,head);
-  // Asegurar que la columna FECHA se trate como texto para mostrar "HH:mm dd-mm-aaaa"
+  // Asegurar formato de fecha/hora y zona horaria del Spreadsheet
+  try{
+    if(ss && ss.getSpreadsheetTimeZone && ss.getSpreadsheetTimeZone() !== 'America/Caracas'){
+      ss.setSpreadsheetTimeZone('America/Caracas');
+    }
+  }catch(_){ }
   try{
     if(idx['FECHA']){
-      sh.getRange(1, idx['FECHA'], sh.getMaxRows()).setNumberFormat('@'); // formato texto
+      sh.getRange(1, idx['FECHA'], sh.getMaxRows()).setNumberFormat('hh:mm dd-mm-yyyy');
     }
   }catch(_){ }
 
@@ -149,8 +154,17 @@ function appendInventario(payload,opts){
   var sede=_canonSede(payload.meta&&payload.meta.sede);
   var empresa=String(payload.meta&&payload.meta.familia||'').trim();
   var resp=String(payload.meta&&payload.meta.responsable||'').trim();
-  var horaFecha=((hora?hora:'') + (fecha?(' '+fecha):'')).trim(); // FECHA mostrará hora+fecha
-  var fechaDisplay = horaFecha ? (horaFecha.charAt(0)==="'" ? horaFecha : ("'"+horaFecha)) : '';
+  // Construir Date real para FECHA con hora de Caracas
+  var horaFecha=((hora?hora:'') + (fecha?(' '+fecha):'')).trim();
+  var dt=null; // Date con la hora/minuto indicados sobre la fecha seleccionada
+  try{
+    var fkey=_asDateKey_(fecha); // YYYY-MM-DD
+    var p=fkey.split('-');
+    var yy=Number(p[0]||0), mm1=Number(p[1]||1)-1, dd=Number(p[2]||1);
+    var hm=String(hora||'').split(':');
+    var HH=Number(hm[0]||0), MM=Number(hm[1]||0);
+    dt=new Date(yy,mm1,dd,HH,MM,0,0);
+  }catch(_){ dt=null; }
 
   var items=Array.isArray(payload.items)?payload.items:[];
   var rows=[];
@@ -162,8 +176,8 @@ function appendInventario(payload,opts){
     var qty=Number(it.quantity||0);
 
     var vals=new Array(head.length).fill('');
-    if(idx['entry_id'])  vals[idx['entry_id']-1]=entryId;
-    if(idx['FECHA'])     vals[idx['FECHA']-1]=fechaDisplay||'';
+  if(idx['entry_id'])  vals[idx['entry_id']-1]=entryId;
+  if(idx['FECHA'])     vals[idx['FECHA']-1]=dt||horaFecha||'';
     if(idx['TIPO'])      vals[idx['TIPO']-1]=tipo||'';
     if(idx['SEDE'])      vals[idx['SEDE']-1]=sede||'';
     if(idx['EMPRESA'])   vals[idx['EMPRESA']-1]=empresa||'';
