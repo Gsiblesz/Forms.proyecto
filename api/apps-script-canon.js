@@ -16,7 +16,8 @@ const CONFIG = {
       sheet: 'INVENTARIO DE PRODUCTO TERMINADO',
       // Mantener primeros 5 como están y reordenar bloque de producto
       // entry_id, FECHA, TIPO, SEDE, EMPRESA, CODIGO, PRODUCTO, UND, CANTIDAD, RESPONSABLE
-      HEAD: ['entry_id','FECHA','TIPO','SEDE','EMPRESA','CODIGO','PRODUCTO','UND','CANTIDAD','RESPONSABLE'],
+      // Ajuste: incluir HORA antes de FECHA; HORA llevará "HH:mm dd-mm-aaaa" y FECHA solo "dd-mm-aaaa"
+      HEAD: ['entry_id','HORA','FECHA','TIPO','SEDE','EMPRESA','CODIGO','PRODUCTO','UND','CANTIDAD','RESPONSABLE'],
       MODE: 'append'
     }
   }
@@ -108,7 +109,7 @@ function doPost(e){
 function appendInventario(payload,opts){
   var ss=opts.ss;
   var sheetName=opts.sheetName;
-  var head=opts.head||['entry_id','FECHA','TIPO','SEDE','EMPRESA','CODIGO','PRODUCTO','UND','CANTIDAD','RESPONSABLE'];
+  var head=opts.head||['entry_id','HORA','FECHA','TIPO','SEDE','EMPRESA','CODIGO','PRODUCTO','UND','CANTIDAD','RESPONSABLE'];
   var sh=_getOrCreateSheet(ss,sheetName,head);
   // Asegura que la hoja tenga exactamente los encabezados esperados y en ese orden
   _reconcileHeaderAndOrder_(sh, head);
@@ -121,6 +122,7 @@ function appendInventario(payload,opts){
   var sede=_canonSede(payload.meta&&payload.meta.sede);
   var empresa=String(payload.meta&&payload.meta.familia||'').trim();
   var resp=String(payload.meta&&payload.meta.responsable||'').trim();
+  var horaFecha=(hora?hora:'') + (fecha?(' '+fecha):'');
 
   var items=Array.isArray(payload.items)?payload.items:[];
   var rows=[];
@@ -133,8 +135,8 @@ function appendInventario(payload,opts){
 
     var vals=new Array(head.length).fill('');
     if(idx['entry_id'])  vals[idx['entry_id']-1]=entryId;
-  if(idx['FECHA'])     vals[idx['FECHA']-1]=fecha||'';
-  if(idx['HORA'])      vals[idx['HORA']-1]=hora||'';
+    if(idx['HORA'])      vals[idx['HORA']-1]=horaFecha||'';
+    if(idx['FECHA'])     vals[idx['FECHA']-1]=fecha||'';
     if(idx['TIPO'])      vals[idx['TIPO']-1]=tipo||'';
     if(idx['SEDE'])      vals[idx['SEDE']-1]=sede||'';
     if(idx['EMPRESA'])   vals[idx['EMPRESA']-1]=empresa||'';
