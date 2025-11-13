@@ -111,12 +111,33 @@ function appendInventario(payload,opts){
   var sheetName=opts.sheetName;
   var head=opts.head||['entry_id','HORA','FECHA','TIPO','SEDE','EMPRESA','CODIGO','PRODUCTO','UND','CANTIDAD','RESPONSABLE'];
   var sh=_getOrCreateSheet(ss,sheetName,head);
-  // Asegura que la hoja tenga exactamente los encabezados esperados y en ese orden
-  _reconcileHeaderAndOrder_(sh, head);
+  // Verificación fuerte del encabezado: si falta HORA/FECHA o hay PRODUCTOS/CANTIDAD duplicado, reconstruye la hoja
+  try{
+    var curHeadAll=sh.getRange(1,1,1,Math.max(sh.getLastColumn(),head.length)).getValues()[0].map(function(x){return String(x||'').trim();});
+    var needsFix=false;
+    // Normaliza PRODUCTOS -> PRODUCTO para la comparación
+    var curNorm=curHeadAll.map(function(x){ return (String(x).trim().toUpperCase()==='PRODUCTOS')?'PRODUCTO':String(x).trim(); });
+    // Falta alguno requerido o el orden de los primeros N no coincide o hay más/menos columnas
+    for(var i0=0;i0<head.length;i0++){ if(curNorm[i0]!==head[i0]) { needsFix=true; break; } }
+    for(var j0=0;j0<head.length && !needsFix;j0++){ if(curNorm.indexOf(head[j0])===-1){ needsFix=true; break; } }
+    if(!needsFix){
+      // detecta duplicados de algún encabezado requerido en las primeras N columnas
+      var seen={};
+      for(var k0=0;k0<Math.min(curNorm.length,head.length);k0++){ var name=curNorm[k0]; if(seen[name]){ needsFix=true; break; } seen[name]=true; }
+    }
+    if(needsFix){
+      fixSheetToHead_(ss,sheetName,head);
+      sh=ss.getSheetByName(sheetName);
+    } else {
+      // Si no requiere reconstrucción completa, al menos reconciliar orden y sinónimos
+      _reconcileHeaderAndOrder_(sh, head);
+    }
+  }catch(_){ _reconcileHeaderAndOrder_(sh, head); }
   var idx=_ensureColumnsAndIndex_(sh,head);
 
   var entryId=String(payload.id||('e-'+Math.random().toString(36).slice(2,8))).toUpperCase();
-  var fecha=payload.meta&&payload.meta.fechaTxt?String(payload.meta.fechaTxt).trim():_asDateString(payload.meta&&payload.meta.fecha);
+  var fechaRaw=payload.meta&&payload.meta.fechaTxt?String(payload.meta.fechaTxt).trim():_asDateString(payload.meta&&payload.meta.fecha);
+  var fecha=_asDateDisplay_(fechaRaw); // siempre dd-mm-aaaa
   var hora=(payload.meta&&payload.meta.horaTxt)?String(payload.meta.horaTxt).trim():_asTimeString(new Date());
   var tipo=String(payload.meta&&payload.meta.tipo||'').toUpperCase();
   var sede=_canonSede(payload.meta&&payload.meta.sede);
@@ -409,6 +430,20 @@ function _reconcileHeaderAndOrder_(sh, requiredHead){
     // Escribe los encabezados exactamente como requiredHead en las primeras N columnas
     sh.getRange(1,1,1,requiredHead.length).setValues([requiredHead]);
     sh.setFrozenRows(1);
+
+    // Opcional: si hay columnas duplicadas de nombres requeridos a la derecha de N, eliminarlas para evitar confusiones futuras
+    var lastColNow=sh.getLastColumn();
+    if(lastColNow>requiredHead.length){
+      var hdrNow=sh.getRange(1,1,1,lastColNow).getValues()[0];
+      var reqSet={}; for(var r=0;r<requiredHead.length;r++){ reqSet[requiredHead[r]]=true; }
+      // Recorre de derecha a izquierda eliminando duplicados de nombres requeridos más allá de N
+      for(var cc=lastColNow; cc>requiredHead.length; cc--){
+        var nameNow=String(hdrNow[cc-1]).trim();
+        if(reqSet[nameNow]){
+          try{ sh.deleteColumn(cc); }catch(e){}
+        }
+      }
+    }
   }catch(e){ /* no-op si no se puede reordenar */ }
 }
 
@@ -423,9 +458,14 @@ function fixSheetToHead_(ss, sheetName, requiredHead){
     return {sheet:sheetName,rows:0,head:requiredHead};
   }
   var curHead=data[0];
-  // mapa nombre -> index 0-based
+  // mapa nombre normalizado -> index 0-based (PRODUCTOS -> PRODUCTO)
   var map={};
-  for(var i=0;i<curHead.length;i++){ map[String(curHead[i]).trim()]=i; }
+  for(var i=0;i<curHead.length;i++){
+    var raw=String(curHead[i]).trim();
+    var norm=(raw.toUpperCase()==='PRODUCTOS')?'PRODUCTO':raw;
+    // Conserva la primera ocurrencia si hay duplicados
+    if(map[norm]==null) map[norm]=i;
+  }
   // construir salida
   var outRows=[];
   for(var r=1;r<data.length;r++){
@@ -522,4 +562,22 @@ function _asTimeString(d){
     var mm=('0'+d.getMinutes()).slice(-2);
     return hh+':'+mm;
   }catch(_){ return ''; }
+}
+
+// Asegura formato de fecha de visualización dd-mm-aaaa
+function _asDateDisplay_(s){
+  if(!s) return '';
+  var str=String(s).trim();
+  var mISO=str.match(/^(\d{4})-(\d{2})-(\d{2})$/); // YYYY-MM-DD -> DD-MM-YYYY
+  if(mISO){ return mISO[3]+'-'+mISO[2]+'-'+mISO[1]; }
+  var mDMY=str.match(/^(\d{2})-(\d{2})-(\d{4})$/); // ya dd-mm-aaaa
+  if(mDMY){ return str; }
+  var d=new Date(str);
+  if(!isNaN(d)){
+    var dd=('0'+d.getDate()).slice(-2);
+    var mm=('0'+(d.getMonth()+1)).slice(-2);
+    var yy=d.getFullYear();
+    return dd+'-'+mm+'-'+yy;
+  }
+  return str;
 }
