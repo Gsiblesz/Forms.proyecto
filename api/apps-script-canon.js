@@ -134,6 +134,12 @@ function appendInventario(payload,opts){
     }
   }catch(_){ _reconcileHeaderAndOrder_(sh, head); }
   var idx=_ensureColumnsAndIndex_(sh,head);
+  // Asegurar que la columna FECHA se trate como texto para mostrar "HH:mm dd-mm-aaaa"
+  try{
+    if(idx['FECHA']){
+      sh.getRange(1, idx['FECHA'], sh.getMaxRows()).setNumberFormat('@'); // formato texto
+    }
+  }catch(_){ }
 
   var entryId=String(payload.id||('e-'+Math.random().toString(36).slice(2,8))).toUpperCase();
   var fechaRaw=payload.meta&&payload.meta.fechaTxt?String(payload.meta.fechaTxt).trim():_asDateString(payload.meta&&payload.meta.fecha);
@@ -143,7 +149,8 @@ function appendInventario(payload,opts){
   var sede=_canonSede(payload.meta&&payload.meta.sede);
   var empresa=String(payload.meta&&payload.meta.familia||'').trim();
   var resp=String(payload.meta&&payload.meta.responsable||'').trim();
-  var horaFecha=(hora?hora:'') + (fecha?(' '+fecha):''); // FECHA mostrará hora+fecha
+  var horaFecha=((hora?hora:'') + (fecha?(' '+fecha):'')).trim(); // FECHA mostrará hora+fecha
+  var fechaDisplay = horaFecha ? (horaFecha.charAt(0)==="'" ? horaFecha : ("'"+horaFecha)) : '';
 
   var items=Array.isArray(payload.items)?payload.items:[];
   var rows=[];
@@ -156,7 +163,7 @@ function appendInventario(payload,opts){
 
     var vals=new Array(head.length).fill('');
     if(idx['entry_id'])  vals[idx['entry_id']-1]=entryId;
-  if(idx['FECHA'])     vals[idx['FECHA']-1]=horaFecha||'';
+    if(idx['FECHA'])     vals[idx['FECHA']-1]=fechaDisplay||'';
     if(idx['TIPO'])      vals[idx['TIPO']-1]=tipo||'';
     if(idx['SEDE'])      vals[idx['SEDE']-1]=sede||'';
     if(idx['EMPRESA'])   vals[idx['EMPRESA']-1]=empresa||'';

@@ -37,7 +37,7 @@ async function saveToBackend(items) {
 URL actual desplegada (puede cambiar en futuras versiones):
 
 ```
-https://script.google.com/macros/s/AKfycbzoiYlfw6P2qEoUZ7T_QVLqvDcXvASc8j_MxKx7SXG4y_e7FW0SdbyKJdnGaMXFXu88lA/exec
+https://script.google.com/macros/s/AKfycbzJiNLPzQvEwKN0SIvrqGZptO1vTrfF4sLg7yUT_GsbwvuTZqG2vMPvIA9HlgO4deq24A/exec
 ```
 
 Si se genera una nueva implementación en Apps Script, recuerda actualizar esta URL en `assets/app.js`, `app.js` y `menu.html` (función `resetSettingsUI`).
