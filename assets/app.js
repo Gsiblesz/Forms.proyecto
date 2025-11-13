@@ -243,7 +243,7 @@ const SUBMIT_COOLDOWN_MS = 4_000;  // mantener botón deshabilitado X segundos t
 const ENABLE_LOCAL_SAVE = false;
 const STORAGE_KEY = "productos_registrados";
 const SETTINGS_KEY = "gs_settings"; // { url: string, enabled: boolean, token?: string }
-const DEFAULT_GS_URL = "https://script.google.com/macros/s/AKfycbyYCB_PY7ujLIHan3AwjdYXXojtf7npK74eC8opA0Z8GJlf8pFXIlhBEP3qzexJlSF5HQ/exec"; // actualizado (2025-11-13)
+const DEFAULT_GS_URL = "https://script.google.com/macros/s/AKfycbzoiYlfw6P2qEoUZ7T_QVLqvDcXvASc8j_MxKx7SXG4y_e7FW0SdbyKJdnGaMXFXu88lA/exec"; // actualizado (2025-11-13)
 const DEFAULT_GS_TOKEN = "Pasantias90";
 const ROLE_KEY = "app_role"; // 'worker' | 'admin'
 
@@ -1000,14 +1000,25 @@ function main() {
 
   addBtn.addEventListener("click", () => rowsEl.appendChild(createRow()));
 
+  // Utilidades de fecha/hora en zona horaria específica
+  function getTZParts(tz, date = new Date()) {
+    try {
+      const parts = new Intl.DateTimeFormat('en-GB', {
+        timeZone: tz,
+        year: 'numeric', month: '2-digit', day: '2-digit',
+        hour: '2-digit', minute: '2-digit', hourCycle: 'h23'
+      }).formatToParts(date);
+      const map = {}; for (const p of parts) { map[p.type] = p.value; }
+      return { year: map.year, month: map.month, day: map.day, hour: map.hour, minute: map.minute };
+    } catch { return null; }
+  }
+
   // Botón rápido para establecer la fecha de hoy (dd-mm-aaaa)
   if (setTodayBtn) {
     setTodayBtn.addEventListener("click", () => {
-      const d = new Date();
-      const yyyy = d.getFullYear();
-      const mm = String(d.getMonth() + 1).padStart(2, "0");
-      const dd = String(d.getDate()).padStart(2, "0");
-      const iso = `${dd}-${mm}-${yyyy}`;
+      // Usar la zona horaria de Venezuela
+      const ve = getTZParts('America/Caracas') || {};
+      const iso = `${ve.day||'01'}-${ve.month||'01'}-${ve.year||'1970'}`;
       const dateInput = document.getElementById("meta-date");
       if (dateInput) dateInput.value = iso;
     });
@@ -1028,11 +1039,8 @@ function main() {
   // Prefijar la fecha de hoy si está vacía
   const dateInputInit = document.getElementById("meta-date");
   if (dateInputInit && !dateInputInit.value) {
-    const d = new Date();
-    const yyyy = d.getFullYear();
-    const mm = String(d.getMonth() + 1).padStart(2, "0");
-    const dd = String(d.getDate()).padStart(2, "0");
-    dateInputInit.value = `${dd}-${mm}-${yyyy}`;
+    const ve = getTZParts('America/Caracas') || {};
+    dateInputInit.value = `${ve.day||'01'}-${ve.month||'01'}-${ve.year||'1970'}`;
   }
 
   let isSubmitting = false;
@@ -1063,12 +1071,14 @@ function main() {
     if (metaProbe && metaProbe.fecha) {
       metaProbe.fechaTxt = metaProbe.fecha; // dd-mm-aaaa
     }
-    // Registrar hora local de envío HH:MM
+    // Registrar siempre hora de Caracas (HH:MM) para coherencia con Venezuela
     try {
-      const now = new Date();
-      const hh = String(now.getHours()).padStart(2, '0');
-      const mm = String(now.getMinutes()).padStart(2, '0');
-      metaProbe.horaTxt = `${hh}:${mm}`;
+      const ve = getTZParts('America/Caracas');
+      if (ve) {
+        const hh = String(ve.hour||'00').padStart(2,'0');
+        const mm = String(ve.minute||'00').padStart(2,'0');
+        metaProbe.horaTxt = `${hh}:${mm}`;
+      }
     } catch {}
     // Default para Registros LA TATA: ENTREGADO (sin UI de tipo)
     if (cfg && (cfg.id === 'tata-libertad' || cfg.id === 'solicitudes')) {
