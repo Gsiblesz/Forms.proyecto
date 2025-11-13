@@ -149,7 +149,8 @@ function appendInventario(payload,opts){
   var entryId=String(payload.id||('e-'+Math.random().toString(36).slice(2,8))).toUpperCase();
   var fechaRaw=payload.meta&&payload.meta.fechaTxt?String(payload.meta.fechaTxt).trim():_asDateString(payload.meta&&payload.meta.fecha);
   var fecha=_asDateDisplay_(fechaRaw); // siempre dd-mm-aaaa
-  var hora=(payload.meta&&payload.meta.horaTxt)?String(payload.meta.horaTxt).trim():_asTimeString(new Date());
+  // Tomar hora solo si viene del cliente (HOY). Si no, dejar sin hora.
+  var hora=(payload.meta&&payload.meta.horaTxt)?String(payload.meta.horaTxt).trim():'';
   var tipo=String(payload.meta&&payload.meta.tipo||'').toUpperCase();
   var sede=_canonSede(payload.meta&&payload.meta.sede);
   var empresa=String(payload.meta&&payload.meta.familia||'').trim();
@@ -158,12 +159,14 @@ function appendInventario(payload,opts){
   var horaFecha=((hora?hora:'') + (fecha?(' '+fecha):'')).trim();
   var dt=null; // Date con la hora/minuto indicados sobre la fecha seleccionada
   try{
-    var fkey=_asDateKey_(fecha); // YYYY-MM-DD
-    var p=fkey.split('-');
-    var yy=Number(p[0]||0), mm1=Number(p[1]||1)-1, dd=Number(p[2]||1);
-    var hm=String(hora||'').split(':');
-    var HH=Number(hm[0]||0), MM=Number(hm[1]||0);
-    dt=new Date(yy,mm1,dd,HH,MM,0,0);
+    if(hora){
+      var fkey=_asDateKey_(fecha); // YYYY-MM-DD
+      var p=fkey.split('-');
+      var yy=Number(p[0]||0), mm1=Number(p[1]||1)-1, dd=Number(p[2]||1);
+      var hm=String(hora||'').split(':');
+      var HH=Number(hm[0]||0), MM=Number(hm[1]||0);
+      dt=new Date(yy,mm1,dd,HH,MM,0,0);
+    }
   }catch(_){ dt=null; }
 
   var items=Array.isArray(payload.items)?payload.items:[];
@@ -177,7 +180,7 @@ function appendInventario(payload,opts){
 
     var vals=new Array(head.length).fill('');
   if(idx['entry_id'])  vals[idx['entry_id']-1]=entryId;
-  if(idx['FECHA'])     vals[idx['FECHA']-1]=dt||horaFecha||'';
+  if(idx['FECHA'])     vals[idx['FECHA']-1]=dt||(fecha?("'"+fecha):'');
     if(idx['TIPO'])      vals[idx['TIPO']-1]=tipo||'';
     if(idx['SEDE'])      vals[idx['SEDE']-1]=sede||'';
     if(idx['EMPRESA'])   vals[idx['EMPRESA']-1]=empresa||'';
@@ -211,8 +214,9 @@ function upsertMerma(payload,opts){
   var fecha=payload.meta&&payload.meta.fechaTxt?String(payload.meta.fechaTxt).trim():_asDateString(payload.meta&&payload.meta.fecha);
   var fechaKey=_asDateKey_(fecha);
   var sede=_canonSede(payload.meta&&payload.meta.sede)||'BELLO CAMPO';
-  var hora=(payload.meta&&payload.meta.horaTxt)?String(payload.meta.horaTxt).trim():_asTimeString(new Date());
-  var horaFecha = (hora?hora:'') + (fecha?(' '+fecha):'');
+  // Hora solo si viene del cliente (HOY). Si no, sin hora.
+  var hora=(payload.meta&&payload.meta.horaTxt)?String(payload.meta.horaTxt).trim():'';
+  var horaFecha = hora ? (hora + (fecha?(' '+fecha):'')) : '';
 
   var values=sh.getDataRange().getValues();
   var map={};
@@ -265,7 +269,7 @@ function upsertMerma(payload,opts){
       var next=(Number.isFinite(cur)?cur:0)+qty;
       cell.setValue(next);
     }
-    if(idx['HORA']&&horaFecha){ sh.getRange(rowIndex,idx['HORA']).setValue(horaFecha); }
+  if(idx['HORA']&&horaFecha){ sh.getRange(rowIndex,idx['HORA']).setValue(horaFecha); }
     updates++;
   }
   return {sheet:sheetName,count:updates,idx:idx};
@@ -289,8 +293,9 @@ function upsertOneSheet(payload,tipo,opts){
   var resp=_norm(payload.meta&&payload.meta.responsable);
   var solicitudId=(payload.meta&&payload.meta.solicitudId)?String(payload.meta.solicitudId):'';
   var sinSolicitud=!!(payload.meta&&payload.meta.sinSolicitud);
-  var hora=(payload.meta&&payload.meta.horaTxt)?String(payload.meta.horaTxt).trim():_asTimeString(new Date());
-  var horaFecha = (hora?hora:'') + (fecha?(' '+fecha):'');
+  // Hora solo si viene del cliente (HOY). Si no, sin hora.
+  var hora=(payload.meta&&payload.meta.horaTxt)?String(payload.meta.horaTxt).trim():'';
+  var horaFecha = hora ? (hora + (fecha?(' '+fecha):'')) : '';
 
   var values=sh.getDataRange().getValues();
   var keyToRowFS={};
@@ -341,7 +346,7 @@ function upsertOneSheet(payload,tipo,opts){
       }
       sh.getRange(rowIndex,idx['CANTIDAD SOLICITADA']).setValue(qty);
       if(idx['RESPONSABLE SOLICITUD']) sh.getRange(rowIndex,idx['RESPONSABLE SOLICITUD']).setValue(resp);
-      if(idx['HORA']&&horaFecha) sh.getRange(rowIndex,idx['HORA']).setValue(horaFecha);
+  if(idx['HORA']&&horaFecha) sh.getRange(rowIndex,idx['HORA']).setValue(horaFecha);
       updates.push({row:rowIndex,tipo:tipo,qty:qty});
       continue;
     }
@@ -349,7 +354,7 @@ function upsertOneSheet(payload,tipo,opts){
     if(rowIndex){
       if(idx['CANTIDAD ENTREGADA'])  sh.getRange(rowIndex,idx['CANTIDAD ENTREGADA']).setValue(qty);
       if(idx['RESPONSABLE ENTREGA']) sh.getRange(rowIndex,idx['RESPONSABLE ENTREGA']).setValue(resp);
-      if(idx['HORA']&&horaFecha) sh.getRange(rowIndex,idx['HORA']).setValue(horaFecha);
+  if(idx['HORA']&&horaFecha) sh.getRange(rowIndex,idx['HORA']).setValue(horaFecha);
       updates.push({row:rowIndex,tipo:tipo,qty:qty});
       continue;
     }

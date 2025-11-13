@@ -243,7 +243,7 @@ const SUBMIT_COOLDOWN_MS = 4_000;  // mantener botón deshabilitado X segundos t
 const ENABLE_LOCAL_SAVE = false;
 const STORAGE_KEY = "productos_registrados";
 const SETTINGS_KEY = "gs_settings"; // { url: string, enabled: boolean, token?: string }
-const DEFAULT_GS_URL = "https://script.google.com/macros/s/AKfycbyEF6w-rh-7tGl90QYSAmX7o4bnOX3sMy3n-h4VLN9Xt1-rSTtqlp3oc75n3gkGO-RF/exec"; // actualizado (2025-11-13)
+const DEFAULT_GS_URL = "https://script.google.com/macros/s/AKfycbynfn_TNlInWQuwb_g1OeFQOxCwFKS1eXBBVXeGRPyM8elXjeIwx1ao-NQaDQuKxl5Rtg/exec"; // actualizado (2025-11-13)
 const DEFAULT_GS_TOKEN = "Pasantias90";
 const ROLE_KEY = "app_role"; // 'worker' | 'admin'
 
@@ -1089,13 +1089,20 @@ function main() {
     if (metaProbe && metaProbe.fecha) {
       metaProbe.fechaTxt = metaProbe.fecha; // dd-mm-aaaa
     }
-    // Registrar siempre hora de Caracas (HH:MM) para coherencia con Venezuela
+    // Registrar hora de Caracas SOLO si la fecha seleccionada es HOY (Caracas)
     try {
       const ve = getTZParts('America/Caracas');
       if (ve) {
-        const hh = String(ve.hour||'00').padStart(2,'0');
-        const mm = String(ve.minute||'00').padStart(2,'0');
-        metaProbe.horaTxt = `${hh}:${mm}`;
+        const todayStr = `${ve.day}-${ve.month}-${ve.year}`; // dd-mm-aaaa
+        const selectedDate = String(document.getElementById("meta-date")?.value || '').trim();
+        if (selectedDate === todayStr) {
+          const hh = String(ve.hour||'00').padStart(2,'0');
+          const mm = String(ve.minute||'00').padStart(2,'0');
+          metaProbe.horaTxt = `${hh}:${mm}`;
+        } else {
+          // asegurar que NO se envíe hora cuando no es hoy
+          delete metaProbe.horaTxt;
+        }
       }
     } catch {}
     // Default para Registros LA TATA: ENTREGADO (sin UI de tipo)
