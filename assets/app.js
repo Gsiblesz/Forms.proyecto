@@ -243,7 +243,7 @@ const SUBMIT_COOLDOWN_MS = 4_000;  // mantener botón deshabilitado X segundos t
 const ENABLE_LOCAL_SAVE = false;
 const STORAGE_KEY = "productos_registrados";
 const SETTINGS_KEY = "gs_settings"; // { url: string, enabled: boolean, token?: string }
-const DEFAULT_GS_URL = "https://script.google.com/macros/s/AKfycbwfa2BvwXp6bYiOHVktUPMUTIptsbIAQcFmbhZ7n7ZP5vh_ngl9qaRyvHmkBVguClLtcw/exec"; // actualizado (2025-11-11)
+const DEFAULT_GS_URL = "https://script.google.com/macros/s/AKfycbwTiamIBZuWy4198eaDFg0IcCUZZV4duhUJo7McQzRUcIi6KBPu75GL3GOIXn8UmbfNnA/exec"; // actualizado (2025-11-13)
 const DEFAULT_GS_TOKEN = "Pasantias90";
 const ROLE_KEY = "app_role"; // 'worker' | 'admin'
 
@@ -992,14 +992,14 @@ function main() {
 
   addBtn.addEventListener("click", () => rowsEl.appendChild(createRow()));
 
-  // Botón rápido para establecer la fecha de hoy (YYYY-MM-DD)
+  // Botón rápido para establecer la fecha de hoy (dd-mm-aaaa)
   if (setTodayBtn) {
     setTodayBtn.addEventListener("click", () => {
       const d = new Date();
       const yyyy = d.getFullYear();
       const mm = String(d.getMonth() + 1).padStart(2, "0");
       const dd = String(d.getDate()).padStart(2, "0");
-      const iso = `${yyyy}-${mm}-${dd}`;
+      const iso = `${dd}-${mm}-${yyyy}`;
       const dateInput = document.getElementById("meta-date");
       if (dateInput) dateInput.value = iso;
     });
@@ -1011,7 +1011,7 @@ function main() {
       const yyyy = d.getFullYear();
       const mm = String(d.getMonth() + 1).padStart(2, "0");
       const dd = String(d.getDate()).padStart(2, "0");
-      const iso = `${yyyy}-${mm}-${dd}`;
+      const iso = `${dd}-${mm}-${yyyy}`;
       const dateInput = document.getElementById("meta-date");
       if (dateInput) dateInput.value = iso;
     });
@@ -1024,7 +1024,7 @@ function main() {
     const yyyy = d.getFullYear();
     const mm = String(d.getMonth() + 1).padStart(2, "0");
     const dd = String(d.getDate()).padStart(2, "0");
-    dateInputInit.value = `${yyyy}-${mm}-${dd}`;
+    dateInputInit.value = `${dd}-${mm}-${yyyy}`;
   }
 
   let isSubmitting = false;
@@ -1053,8 +1053,15 @@ function main() {
     }
     // Enviar también la fecha como texto plano para que el backend NO la reprocese con zonas horarias
     if (metaProbe && metaProbe.fecha) {
-      metaProbe.fechaTxt = metaProbe.fecha;
+      metaProbe.fechaTxt = metaProbe.fecha; // dd-mm-aaaa
     }
+    // Registrar hora local de envío HH:MM
+    try {
+      const now = new Date();
+      const hh = String(now.getHours()).padStart(2, '0');
+      const mm = String(now.getMinutes()).padStart(2, '0');
+      metaProbe.horaTxt = `${hh}:${mm}`;
+    } catch {}
     // Default para Registros LA TATA: ENTREGADO (sin UI de tipo)
     if (cfg && (cfg.id === 'tata-libertad' || cfg.id === 'solicitudes')) {
       if (!metaProbe.tipo) metaProbe.tipo = 'ENTREGADO';
