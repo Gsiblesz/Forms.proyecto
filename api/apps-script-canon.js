@@ -3,7 +3,7 @@
 const CONFIG = {
   TOKEN: 'Pasantias90',
   SPREADSHEET_ID: '1MQlP9wx199xW-gIYwf4FcjdANG9TLEkSjORiNmxJH5s',
-  SHEET: 'DefaultSheet',
+  SHEET: 'SOLICITUDES',
   // Agregamos columna HORA (antes de FECHA); HORA contendrá "HH:mm dd-mm-aaaa" y FECHA solo "dd-mm-aaaa"
   HEAD: ['HORA','FECHA','SEDE','FAMILIA','PRODUCTO','CODIGO','UND','CANTIDAD SOLICITADA','RESPONSABLE SOLICITUD','CANTIDAD ENTREGADA','RESPONSABLE ENTREGA'],
   DELIVERY_MATCH_SCOPE: 'FECHA_SEDE_PRODUCTO',
@@ -12,7 +12,7 @@ const CONFIG = {
   ALWAYS_CREATE_WHEN_SIN_SOLICITUD: true,
   TARGETS: {
     'inventario-pt': {
-      ssurl: 'https://docs.google.com/spreadsheets/d/1TlsAVq8pauOxwHHCWGL8I740pGZ5ftpYC3gwvEPo1eE/edit?gid=0#gid=0',
+      ssurl: 'https://docs.google.com/spreadsheets/d/1MQlP9wx199xW-gIYwf4FcjdANG9TLEkSjORiNmxJH5s/edit?usp=sharing',
       sheet: 'INVENTARIO DE PRODUCTO TERMINADO',
       // Mantener primeros 5 como están y reordenar bloque de producto
       // entry_id, FECHA (con hora incluida), TIPO, SEDE, EMPRESA, CODIGO, PRODUCTO, UND, CANTIDAD, RESPONSABLE
@@ -23,6 +23,7 @@ const CONFIG = {
     ,
     // Target explícito para el formulario LA TATA de la libertad
     'tata-libertad': {
+      ssurl: 'https://docs.google.com/spreadsheets/d/1MQlP9wx199xW-gIYwf4FcjdANG9TLEkSjORiNmxJH5s/edit?usp=sharing',
       sheet: 'LA TATA DE LA LIBERTAD',
       HEAD: ['HORA','FECHA','SEDE','FAMILIA','PRODUCTO','CODIGO','UND','CANTIDAD SOLICITADA','RESPONSABLE SOLICITUD','CANTIDAD ENTREGADA','RESPONSABLE ENTREGA']
     }
@@ -499,22 +500,14 @@ function _json(obj,status){
 }
 
 function _resolveSpreadsheet(ssid,ssurl){
-  const ss = SpreadsheetApp.openById(ssid || CONFIG.SPREADSHEET_ID);
-  _initializeSheets(ss);
-  return ss;
-}
-
-function _initializeSheets(ss) {
-  const sheets = [
-    { name: 'MERMA', headers: ['entry_id', 'HORA', 'FECHA', 'TIPO', 'SEDE', 'EMPRESA', 'CODIGO', 'PRODUCTO', 'UND', 'CANTIDAD', 'RESPONSABLE'] },
-    { name: 'INVENTARIO DE PRODUCTO TERMINADO', headers: ['entry_id', 'HORA', 'FECHA', 'TIPO', 'SEDE', 'EMPRESA', 'CODIGO', 'PRODUCTO', 'UND', 'CANTIDAD', 'RESPONSABLE'] },
-    // Add other sheets as needed
-  ];
-
-  sheets.forEach(sheet => {
-    const sh = _getOrCreateSheet(ss, sheet.name, sheet.headers);
-    _reconcileHeaderAndOrder_(sh, sheet.headers);
-  });
+  try{
+    if(ssid) return SpreadsheetApp.openById(ssid);
+    if(ssurl){
+      var m=String(ssurl).match(/\/d\/([^/]+)/);
+      if(m&&m[1]) return SpreadsheetApp.openById(m[1]);
+    }
+  }catch(e){}
+  return SpreadsheetApp.openById(CONFIG.SPREADSHEET_ID);
 }
 
 function _getOrCreateSheet(ss,name,header){

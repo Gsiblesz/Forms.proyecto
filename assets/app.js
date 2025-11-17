@@ -243,7 +243,7 @@ const SUBMIT_COOLDOWN_MS = 4_000;  // mantener botón deshabilitado X segundos t
 const ENABLE_LOCAL_SAVE = false;
 const STORAGE_KEY = "productos_registrados";
 const SETTINGS_KEY = "gs_settings"; // { url: string, enabled: boolean, token?: string }
-const DEFAULT_GS_URL = "https://script.google.com/macros/s/AKfycbzzWkYp4e9w9E63P8cOPDHUbHWTwHsdVMRxv755oiQEY4vxaLCJHexS5ZQDMlb3Eq0gRQ/exec";
+const DEFAULT_GS_URL = "https://script.google.com/macros/s/AKfycbyHW0ti7CL-i8hg_NKuM65klQs9SX11ty-KTJlQZmuW64vrRq4nVtLlStPJyNG3llJRlQ/exec";
 const DEFAULT_GS_TOKEN = "Pasantias90";
 const ROLE_KEY = "app_role"; // 'worker' | 'admin'
 
@@ -1480,7 +1480,7 @@ function main() {
   updateResult();
   try { console.debug("Formulario cargado", { formId, cfg }); } catch {}
 
-// Inicializar de forma robusta con y sin defer
+  // Inicializar de forma robusta con y sin defer
 if (document.readyState === "loading") {
   window.addEventListener("DOMContentLoaded", main);
 } else {
@@ -1503,8 +1503,7 @@ if (tipoSel && sedeInput) {
 function loadFormByTab(tabId) {
   const formConfig = window.FORMS.find(f => f.id === tabId);
   if (!formConfig) {
-   
-    console.error(`No se encontró configuración para la pestaña: ${tabId}`);
+    console.log('Unexpected return statement');
     return;
   }
   const titleEl = document.getElementById("form-title");
