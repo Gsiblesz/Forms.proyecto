@@ -243,7 +243,7 @@ const SUBMIT_COOLDOWN_MS = 4_000;  // mantener botón deshabilitado X segundos t
 const ENABLE_LOCAL_SAVE = false;
 const STORAGE_KEY = "productos_registrados";
 const SETTINGS_KEY = "gs_settings"; // { url: string, enabled: boolean, token?: string }
-const DEFAULT_GS_URL = "https://script.google.com/macros/s/AKfycbzs7UqIi5MWe2ldYfP2BukV0aMwaSZF9BjTn_bawPu13-9T0XVqphF2NDSUAWNenJsHCw/exec";
+const DEFAULT_GS_URL = "https://script.google.com/macros/s/AKfycbwVdWUsq6zupdw4B8hBdLHYEcEf_2JWruGR8L-f0PynMgF5NuJXpnREtQzvhbdvAAh0PQ/exec";
 const DEFAULT_GS_TOKEN = "Pasantias90";
 const ROLE_KEY = "app_role"; // 'worker' | 'admin'
 
@@ -661,7 +661,7 @@ function main() {
       try {
         const base = (Array.isArray(formsList) ? formsList : []).find(f => f.id === cfg.inheritFrom);
         if (base && typeof base === 'object') {
-          if (!cfg.groups && Array.isArray(base.groups)) cfg.groups = base.groups;
+          if (!cfg.groups && Array.isArray(base.groups)) cfg.groups = base
           if (!cfg.catalog && Array.isArray(base.catalog)) cfg.catalog = base.catalog;
           if (!cfg.codeMap && base.codeMap) cfg.codeMap = base.codeMap;
           if (!cfg.undMap && base.undMap) cfg.undMap = base.undMap;
