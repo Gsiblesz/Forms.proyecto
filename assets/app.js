@@ -243,7 +243,7 @@ const SUBMIT_COOLDOWN_MS = 4_000;  // mantener botón deshabilitado X segundos t
 const ENABLE_LOCAL_SAVE = false;
 const STORAGE_KEY = "productos_registrados";
 const SETTINGS_KEY = "gs_settings"; // { url: string, enabled: boolean, token?: string }
-const DEFAULT_GS_URL = "https://script.google.com/macros/s/AKfycbwhKRmhvehKwWx_IT6ufxExvUjvdekkrs65jbJdrSNu-8yj41OHvd-KEsvBmP5GvylArw/exec"; // actualizado (2025-11-13)
+const DEFAULT_GS_URL = "https://script.google.com/macros/s/AKfycbz8sghLcA0Riy6aVtUYSJ-dGz-CD3xRiNOvovH9VIsxqAjfX1a08PL7cvb4u8sCDF2lMg/exec"; // actualizado (2025-11-17)
 const DEFAULT_GS_TOKEN = "Pasantias90";
 const ROLE_KEY = "app_role"; // 'worker' | 'admin'
 
@@ -1050,8 +1050,9 @@ function main() {
       const ve = getTZParts('America/Caracas') || {};
       const todayStr = `${ve.day||''}-${ve.month||''}-${ve.year||''}`;
       const selectedDate = String(dateEl.value || '').trim();
-      const isInventario = typeof cfg === 'object' && (cfg.id === 'registros' || cfg.id === 'inventario-pt');
-      const shouldInclude = isTodayFlag || selectedDate === todayStr || (isInventario && String(dateEl.dataset?.isToday || '') !== '0');
+  const isInventario = typeof cfg === 'object' && (cfg.id === 'registros' || cfg.id === 'inventario-pt');
+  const isTata = typeof cfg === 'object' && (cfg.id === 'tata-libertad' || cfg.id === 'solicitudes');
+  const shouldInclude = isTodayFlag || selectedDate === todayStr || ((isInventario || isTata) && String(dateEl.dataset?.isToday || '') !== '0');
       if (shouldInclude) {
         ind.textContent = 'Hora: incluida';
         ind.style.background = '#1b6e3a';
@@ -1174,12 +1175,14 @@ function main() {
         const dateEl = document.getElementById("meta-date");
         const selectedDate = String(dateEl?.value || '').trim();
         const isTodayFlag = String(dateEl?.dataset?.isToday || '').trim() === '1';
-        // Regla de inclusión de hora:
-        // - Si el usuario marcó explícitamente Hoy (isTodayFlag) o la fecha coincide con hoy -> incluir hora.
-        // - Para el formulario INVENTARIO PRODUCTO TERMINADO (registros) incluir la hora por defecto
-        //   salvo que el usuario haya marcado explícitamente Ayer / otra fecha (dataset.isToday === '0').
-        const isInventario = cfg && (cfg.id === 'registros' || cfg.id === 'inventario-pt');
-        const shouldIncludeHora = isTodayFlag || selectedDate === todayStr || (isInventario && String(dateEl?.dataset?.isToday || '') !== '0');
+  // Regla de inclusión de hora:
+  // - Si el usuario marcó explícitamente Hoy (isTodayFlag) o la fecha coincide con hoy -> incluir hora.
+  // - Para los formularios de tipo INVENTARIO PRODUCTO TERMINADO (registros) y LA TATA (solicitudes/registro),
+  //   incluir la hora por defecto salvo que el usuario haya marcado explícitamente Ayer / otra fecha
+  //   (dataset.isToday === '0'). Esto restaura el comportamiento previo para LA TATA.
+  const isInventario = cfg && (cfg.id === 'registros' || cfg.id === 'inventario-pt');
+  const isTata = cfg && (cfg.id === 'tata-libertad' || cfg.id === 'solicitudes');
+  const shouldIncludeHora = isTodayFlag || selectedDate === todayStr || ((isInventario || isTata) && String(dateEl?.dataset?.isToday || '') !== '0');
         if (shouldIncludeHora) {
           const hh = String(ve.hour||'00').padStart(2,'0');
           const mm = String(ve.minute||'00').padStart(2,'0');

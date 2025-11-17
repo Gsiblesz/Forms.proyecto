@@ -212,7 +212,8 @@ function upsertMerma(payload,opts){
   var idx=_ensureColumnsAndIndex_(sh,requiredHead);
 
   var fecha=payload.meta&&payload.meta.fechaTxt?String(payload.meta.fechaTxt).trim():_asDateString(payload.meta&&payload.meta.fecha);
-  var fechaKey=_asDateKey_(fecha);
+  // Usar dd-mm-aaaa como clave para emparejado (consistente con la construcción del mapa más abajo)
+  var fechaKey=fecha;
   var sede=_canonSede(payload.meta&&payload.meta.sede)||'BELLO CAMPO';
   // Hora solo si viene del cliente (HOY). Si no, sin hora.
   var hora=(payload.meta&&payload.meta.horaTxt)?String(payload.meta.horaTxt).trim():'';
@@ -288,7 +289,8 @@ function upsertOneSheet(payload,tipo,opts){
 
   var fecha='';
   if(payload.meta&&payload.meta.fechaTxt) fecha=String(payload.meta.fechaTxt).trim(); else fecha=_asDateString(payload.meta&&payload.meta.fecha);
-  var fechaKey=_asDateKey_(fecha);
+  // Usar dd-mm-aaaa como clave (misma representación que se lee de las filas)
+  var fechaKey=fecha;
   var sede=_canonSede(payload.meta&&payload.meta.sede);
   var resp=_norm(payload.meta&&payload.meta.responsable);
   var solicitudId=(payload.meta&&payload.meta.solicitudId)?String(payload.meta.solicitudId):'';
