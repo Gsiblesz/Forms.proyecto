@@ -243,7 +243,7 @@ const SUBMIT_COOLDOWN_MS = 4_000;  // mantener botón deshabilitado X segundos t
 const ENABLE_LOCAL_SAVE = false;
 const STORAGE_KEY = "productos_registrados";
 const SETTINGS_KEY = "gs_settings"; // { url: string, enabled: boolean, token?: string }
-const DEFAULT_GS_URL = "https://script.google.com/macros/s/AKfycbz8sghLcA0Riy6aVtUYSJ-dGz-CD3xRiNOvovH9VIsxqAjfX1a08PL7cvb4u8sCDF2lMg/exec"; // actualizado (2025-11-17)
+const DEFAULT_GS_URL = "https://script.google.com/macros/s/AKfycbwn34WUUrk9XDX4vaTM5PY8XglBNxOLaQt7V_yzbLw6a2SZulPiKpehBOS7mWYHkcqpFA/exec";
 const DEFAULT_GS_TOKEN = "Pasantias90";
 const ROLE_KEY = "app_role"; // 'worker' | 'admin'
 
@@ -695,6 +695,7 @@ function main() {
         effectiveTitle = 'LA TATA DE LA LIBERTAD REGISTROS';
       }
     } catch {}
+    
     if (titleEl) titleEl.textContent = effectiveTitle;
     try { document.title = `${effectiveTitle} — Registro`; } catch {}
     const badgeEl = document.getElementById("form-badge");
@@ -862,6 +863,7 @@ function main() {
       }
       // Forzar sede fija a BELLO CAMPO
   if (sedeInputFixed) sedeInputFixed.value = 'BC';
+    
     }
   }
   // Personalización por formulario: INVENTARIO PRODUCTO TERMINADO (alias: registros)
@@ -1050,6 +1052,8 @@ function main() {
       const ve = getTZParts('America/Caracas') || {};
       const todayStr = `${ve.day||''}-${ve.month||''}-${ve.year||''}`;
       const selectedDate = String(dateEl.value || '').trim();
+  // Excluir el formulario 'registros' de la regla que incluye hora por defecto.
+  // Queremos que el formulario de registro envíe solo la fecha.
   const isInventario = typeof cfg === 'object' && (cfg.id === 'registros' || cfg.id === 'inventario-pt');
   const isTata = typeof cfg === 'object' && (cfg.id === 'tata-libertad' || cfg.id === 'solicitudes');
   const shouldInclude = isTodayFlag || selectedDate === todayStr || ((isInventario || isTata) && String(dateEl.dataset?.isToday || '') !== '0');
@@ -1180,6 +1184,7 @@ function main() {
   // - Para los formularios de tipo INVENTARIO PRODUCTO TERMINADO (registros) y LA TATA (solicitudes/registro),
   //   incluir la hora por defecto salvo que el usuario haya marcado explícitamente Ayer / otra fecha
   //   (dataset.isToday === '0'). Esto restaura el comportamiento previo para LA TATA.
+  // Excluir 'registros' para que el formulario de registro no mande la hora, solo la fecha
   const isInventario = cfg && (cfg.id === 'registros' || cfg.id === 'inventario-pt');
   const isTata = cfg && (cfg.id === 'tata-libertad' || cfg.id === 'solicitudes');
   const shouldIncludeHora = isTodayFlag || selectedDate === todayStr || ((isInventario || isTata) && String(dateEl?.dataset?.isToday || '') !== '0');

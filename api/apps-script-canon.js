@@ -16,8 +16,8 @@ const CONFIG = {
       sheet: 'INVENTARIO DE PRODUCTO TERMINADO',
       // Mantener primeros 5 como están y reordenar bloque de producto
       // entry_id, FECHA (con hora incluida), TIPO, SEDE, EMPRESA, CODIGO, PRODUCTO, UND, CANTIDAD, RESPONSABLE
-      // Nuevo ajuste: eliminar columna HORA y escribir en FECHA el valor "HH:mm dd-mm-aaaa"
-      HEAD: ['entry_id','FECHA','TIPO','SEDE','EMPRESA','CODIGO','PRODUCTO','UND','CANTIDAD','RESPONSABLE'],
+      // Nuevo ajuste: mantener columna HORA antes de FECHA; HORA contendrá Date (hora+fecha) y FECHA dd-mm-aaaa
+      HEAD: ['entry_id','HORA','FECHA','TIPO','SEDE','EMPRESA','CODIGO','PRODUCTO','UND','CANTIDAD','RESPONSABLE'],
       MODE: 'append'
     }
   }
@@ -211,19 +211,65 @@ function upsertMerma(payload,opts){
   _dropColumnByExactHeader_(sh,'TIPO_MERMA');
   var idx=_ensureColumnsAndIndex_(sh,requiredHead);
 
+  // Asegurar zona horaria y formatos: HORA mostrará hora+fecha, FECHA mostrará dd-mm-aaaa
+  try{
+    if(ss && ss.getSpreadsheetTimeZone && ss.getSpreadsheetTimeZone() !== 'America/Caracas'){
+      ss.setSpreadsheetTimeZone('America/Caracas');
+    }
+  }catch(_){ }
+  try{
+    if(idx['HORA']) sh.getRange(1, idx['HORA'], sh.getMaxRows()).setNumberFormat('hh:mm dd-mm-yyyy');
+    if(idx['FECHA']) sh.getRange(1, idx['FECHA'], sh.getMaxRows()).setNumberFormat('dd-mm-yyyy');
+  }catch(_){ }
+
+  // Asegurar zona horaria y formatos: HORA mostrará hora+fecha, FECHA mostrará dd-mm-aaaa
+  try{
+    if(ss && ss.getSpreadsheetTimeZone && ss.getSpreadsheetTimeZone() !== 'America/Caracas'){
+      ss.setSpreadsheetTimeZone('America/Caracas');
+    }
+  }catch(_){ }
+  try{
+    if(idx['HORA']) sh.getRange(1, idx['HORA'], sh.getMaxRows()).setNumberFormat('hh:mm dd-mm-yyyy');
+    if(idx['FECHA']) sh.getRange(1, idx['FECHA'], sh.getMaxRows()).setNumberFormat('dd-mm-yyyy');
+  }catch(_){ }
+
   var fecha=payload.meta&&payload.meta.fechaTxt?String(payload.meta.fechaTxt).trim():_asDateString(payload.meta&&payload.meta.fecha);
-  // Usar dd-mm-aaaa como clave para emparejado (consistente con la construcción del mapa más abajo)
-  var fechaKey=fecha;
+  // Normalizar la fecha del payload a clave YYYY-MM-DD para emparejado consistente
+  var fechaKey=_asDateKey_(fecha);
   var sede=_canonSede(payload.meta&&payload.meta.sede)||'BELLO CAMPO';
   // Hora solo si viene del cliente (HOY). Si no, sin hora.
   var hora=(payload.meta&&payload.meta.horaTxt)?String(payload.meta.horaTxt).trim():'';
   var horaFecha = hora ? (hora + (fecha?(' '+fecha):'')) : '';
+  // Construir Date real si la hora está presente para escribir en la hoja usando tipo Date
+  var dt=null;
+  try{
+    if(hora){
+      var fkey=_asDateKey_(fecha); // YYYY-MM-DD
+      var p=fkey.split('-');
+      var yy=Number(p[0]||0), mm1=Number(p[1]||1)-1, dd=Number(p[2]||1);
+      var hm=String(hora||'').split(':');
+      var HH=Number(hm[0]||0), MM=Number(hm[1]||0);
+      dt=new Date(yy,mm1,dd,HH,MM,0,0);
+    }
+  }catch(_){ dt=null; }
+  // Construir Date real si la hora está presente para escribir en la hoja usando tipo Date
+  var dt=null;
+  try{
+    if(hora){
+      var fkey=_asDateKey_(fecha); // YYYY-MM-DD
+      var p=fkey.split('-');
+      var yy=Number(p[0]||0), mm1=Number(p[1]||1)-1, dd=Number(p[2]||1);
+      var hm=String(hora||'').split(':');
+      var HH=Number(hm[0]||0), MM=Number(hm[1]||0);
+      dt=new Date(yy,mm1,dd,HH,MM,0,0);
+    }
+  }catch(_){ dt=null; }
 
   var values=sh.getDataRange().getValues();
   var map={};
   for(var r=2;r<=values.length;r++){
     var row=values[r-1];
-  var f=_asDateString(row[idx['FECHA']-1]);
+  var f=_asDateKey_(row[idx['FECHA']-1]);
     var s=_canonSede(row[idx['SEDE']-1]);
     var c=idx['CODIGO']?_norm(row[idx['CODIGO']-1]):'';
     var p=idx['PRODUCTO']?_norm(row[idx['PRODUCTO']-1]):'';
@@ -248,7 +294,7 @@ function upsertMerma(payload,opts){
     if(!rowIndex){
       rowIndex=sh.getLastRow()+1;
       sh.insertRows(rowIndex,1);
-  if(idx['HORA'] && horaFecha) sh.getRange(rowIndex,idx['HORA']).setValue(horaFecha);
+      if(idx['HORA'] && dt) sh.getRange(rowIndex,idx['HORA']).setValue(dt);
   if(fecha)  sh.getRange(rowIndex,idx['FECHA']).setValue(fecha);
       if(sede)   sh.getRange(rowIndex,idx['SEDE']).setValue(sede);
       if(nombre) sh.getRange(rowIndex,idx['PRODUCTO']).setValue(nombre);
@@ -270,7 +316,7 @@ function upsertMerma(payload,opts){
       var next=(Number.isFinite(cur)?cur:0)+qty;
       cell.setValue(next);
     }
-  if(idx['HORA']&&horaFecha){ sh.getRange(rowIndex,idx['HORA']).setValue(horaFecha); }
+    if(idx['HORA']&&dt){ sh.getRange(rowIndex,idx['HORA']).setValue(dt); }
     updates++;
   }
   return {sheet:sheetName,count:updates,idx:idx};
@@ -289,8 +335,8 @@ function upsertOneSheet(payload,tipo,opts){
 
   var fecha='';
   if(payload.meta&&payload.meta.fechaTxt) fecha=String(payload.meta.fechaTxt).trim(); else fecha=_asDateString(payload.meta&&payload.meta.fecha);
-  // Usar dd-mm-aaaa como clave (misma representación que se lee de las filas)
-  var fechaKey=fecha;
+  // Normalizar la fecha del payload a clave YYYY-MM-DD para emparejado consistente
+  var fechaKey=_asDateKey_(fecha);
   var sede=_canonSede(payload.meta&&payload.meta.sede);
   var resp=_norm(payload.meta&&payload.meta.responsable);
   var solicitudId=(payload.meta&&payload.meta.solicitudId)?String(payload.meta.solicitudId):'';
@@ -305,7 +351,7 @@ function upsertOneSheet(payload,tipo,opts){
 
   for(var r=2;r<=values.length;r++){
     var row=values[r-1];
-  var f=_asDateString(row[idx['FECHA']-1]);
+  var f=_asDateKey_(row[idx['FECHA']-1]);
     var s=_canonSede(row[idx['SEDE']-1]);
     var c=idx['CODIGO']?_norm(row[idx['CODIGO']-1]):'';
     var p=idx['PRODUCTO']?_norm(row[idx['PRODUCTO']-1]):'';
@@ -338,7 +384,7 @@ function upsertOneSheet(payload,tipo,opts){
         sh.insertRows(insertAt,1);
         rowIndex=insertAt;
         if(blockByFS[placeKey]) blockByFS[placeKey].last=rowIndex; else blockByFS[placeKey]={first:rowIndex,last:rowIndex};
-  if(idx['HORA']&&horaFecha) sh.getRange(rowIndex,idx['HORA']).setValue(horaFecha);
+  if(idx['HORA']&&dt) sh.getRange(rowIndex,idx['HORA']).setValue(dt);
   if(fecha)  sh.getRange(rowIndex,idx['FECHA']).setValue(fecha);
         if(sede)   sh.getRange(rowIndex,idx['SEDE']).setValue(sede);
         if(nombre) sh.getRange(rowIndex,idx['PRODUCTO']).setValue(nombre);
@@ -348,7 +394,7 @@ function upsertOneSheet(payload,tipo,opts){
       }
       sh.getRange(rowIndex,idx['CANTIDAD SOLICITADA']).setValue(qty);
       if(idx['RESPONSABLE SOLICITUD']) sh.getRange(rowIndex,idx['RESPONSABLE SOLICITUD']).setValue(resp);
-  if(idx['HORA']&&horaFecha) sh.getRange(rowIndex,idx['HORA']).setValue(horaFecha);
+  if(idx['HORA']&&dt) sh.getRange(rowIndex,idx['HORA']).setValue(dt);
       updates.push({row:rowIndex,tipo:tipo,qty:qty});
       continue;
     }
@@ -356,7 +402,7 @@ function upsertOneSheet(payload,tipo,opts){
     if(rowIndex){
       if(idx['CANTIDAD ENTREGADA'])  sh.getRange(rowIndex,idx['CANTIDAD ENTREGADA']).setValue(qty);
       if(idx['RESPONSABLE ENTREGA']) sh.getRange(rowIndex,idx['RESPONSABLE ENTREGA']).setValue(resp);
-  if(idx['HORA']&&horaFecha) sh.getRange(rowIndex,idx['HORA']).setValue(horaFecha);
+  if(idx['HORA']&&dt) sh.getRange(rowIndex,idx['HORA']).setValue(dt);
       updates.push({row:rowIndex,tipo:tipo,qty:qty});
       continue;
     }
@@ -368,7 +414,7 @@ function upsertOneSheet(payload,tipo,opts){
       sh.insertRows(insertAtE,1);
       rowIndex=insertAtE;
       if(blockByFS[placeKeyE]) blockByFS[placeKeyE].last=rowIndex; else blockByFS[placeKeyE]={first:rowIndex,last:rowIndex};
-  if(idx['HORA']&&horaFecha) sh.getRange(rowIndex,idx['HORA']).setValue(horaFecha);
+  if(idx['HORA']&&dt) sh.getRange(rowIndex,idx['HORA']).setValue(dt);
   if(fecha) sh.getRange(rowIndex,idx['FECHA']).setValue(fecha);
       if(sede)  sh.getRange(rowIndex,idx['SEDE']).setValue(sede);
       if(nombre) sh.getRange(rowIndex,idx['PRODUCTO']).setValue(nombre);
@@ -376,7 +422,7 @@ function upsertOneSheet(payload,tipo,opts){
       if(und)    sh.getRange(rowIndex,idx['UND']).setValue(und);
       if(idx['CANTIDAD ENTREGADA'])  sh.getRange(rowIndex,idx['CANTIDAD ENTREGADA']).setValue(qty);
       if(idx['RESPONSABLE ENTREGA']) sh.getRange(rowIndex,idx['RESPONSABLE ENTREGA']).setValue(resp);
-      if(idx['HORA']&&horaFecha) sh.getRange(rowIndex,idx['HORA']).setValue(horaFecha);
+  if(idx['HORA']&&dt) sh.getRange(rowIndex,idx['HORA']).setValue(dt);
       updates.push({row:rowIndex,tipo:tipo,qty:qty});
       continue;
     }
