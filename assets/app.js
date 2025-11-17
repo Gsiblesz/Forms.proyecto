@@ -1046,7 +1046,13 @@ function main() {
       const dateEl = document.getElementById('meta-date');
       if (!ind || !dateEl) return;
       const isTodayFlag = String(dateEl.dataset?.isToday || '').trim() === '1';
-      if (isTodayFlag) {
+      // Determinar si la hora será incluida según la misma regla que en el submit
+      const ve = getTZParts('America/Caracas') || {};
+      const todayStr = `${ve.day||''}-${ve.month||''}-${ve.year||''}`;
+      const selectedDate = String(dateEl.value || '').trim();
+      const isInventario = typeof cfg === 'object' && (cfg.id === 'registros' || cfg.id === 'inventario-pt');
+      const shouldInclude = isTodayFlag || selectedDate === todayStr || (isInventario && String(dateEl.dataset?.isToday || '') !== '0');
+      if (shouldInclude) {
         ind.textContent = 'Hora: incluida';
         ind.style.background = '#1b6e3a';
         ind.style.color = '#fff';
@@ -1168,12 +1174,18 @@ function main() {
         const dateEl = document.getElementById("meta-date");
         const selectedDate = String(dateEl?.value || '').trim();
         const isTodayFlag = String(dateEl?.dataset?.isToday || '').trim() === '1';
-        if (isTodayFlag || selectedDate === todayStr) {
+        // Regla de inclusión de hora:
+        // - Si el usuario marcó explícitamente Hoy (isTodayFlag) o la fecha coincide con hoy -> incluir hora.
+        // - Para el formulario INVENTARIO PRODUCTO TERMINADO (registros) incluir la hora por defecto
+        //   salvo que el usuario haya marcado explícitamente Ayer / otra fecha (dataset.isToday === '0').
+        const isInventario = cfg && (cfg.id === 'registros' || cfg.id === 'inventario-pt');
+        const shouldIncludeHora = isTodayFlag || selectedDate === todayStr || (isInventario && String(dateEl?.dataset?.isToday || '') !== '0');
+        if (shouldIncludeHora) {
           const hh = String(ve.hour||'00').padStart(2,'0');
           const mm = String(ve.minute||'00').padStart(2,'0');
           metaProbe.horaTxt = `${hh}:${mm}`;
         } else {
-          // asegurar que NO se envíe hora cuando no es hoy
+          // asegurar que NO se envíe hora cuando no se quiere
           delete metaProbe.horaTxt;
         }
       }
