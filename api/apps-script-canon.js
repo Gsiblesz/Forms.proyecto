@@ -395,6 +395,10 @@ function upsertOneSheet(payload,tipo,opts){
     if(idx['HORA']) sh.getRange(1, idx['HORA'], sh.getMaxRows()).setNumberFormat('hh:mm yyyy-mm-dd');
     if(idx['FECHA']) sh.getRange(1, idx['FECHA'], sh.getMaxRows()).setNumberFormat('yyyy-mm-dd');
   }catch(_){ }
+  // Ensure SEDE is always 'BC' for MERMA
+  if (tipoMeta === 'MERMA') {
+    payload.meta.sede = 'BC'; // Force SEDE to BC
+  }
   var sede=_canonSede(payload.meta&&payload.meta.sede);
   var resp=_norm(payload.meta&&payload.meta.responsable);
   var solicitudId=(payload.meta&&payload.meta.solicitudId)?String(payload.meta.solicitudId):'';
@@ -713,3 +717,14 @@ function _asDateDisplay_(s){
   }
   return str;
 }
+
+// Ensure HORA is formatted as yyyy-mm-dd hh:mm
+  try {
+    if (idx['HORA']) {
+      const now = new Date();
+      const formattedHora = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-${String(now.getDate()).padStart(2, '0')} ${String(now.getHours()).padStart(2, '0')}:${String(now.getMinutes()).padStart(2, '0')}`;
+      sh.getRange(1, idx['HORA'], sh.getLastRow(), 1).setValues(Array(sh.getLastRow()).fill([formattedHora]));
+    }
+  } catch (error) {
+    console.error('Error formatting HORA:', error);
+  }
