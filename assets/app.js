@@ -243,7 +243,7 @@ const SUBMIT_COOLDOWN_MS = 4_000;  // mantener botón deshabilitado X segundos t
 const ENABLE_LOCAL_SAVE = false;
 const STORAGE_KEY = "productos_registrados";
 const SETTINGS_KEY = "gs_settings"; // { url: string, enabled: boolean, token?: string }
-const DEFAULT_GS_URL = "https://script.google.com/macros/s/AKfycbxPITfMlT7fjSTTSCbea1TQcnnRwTPHMiqDPIa13FFqQ21dBgT5qZvn6_ojC9iprviS/exec";
+const DEFAULT_GS_URL = "https://script.google.com/macros/s/AKfycbw4dHBUfW4WzHBcIi0hCmaZIJLOnUIFaCASngh_mfECtzaj1B9sKffZ241wR1nUTzr2nQ/exec";
 const DEFAULT_GS_TOKEN = "Pasantias90";
 const ROLE_KEY = "app_role"; // 'worker' | 'admin'
 
@@ -1452,10 +1452,22 @@ function main() {
       const url = gsUrlInput.value.trim();
       if (!url) return updateResult("Primero ingresa la URL del Web App");
       const token = gsTokenInput.value.trim();
+      // Construir un probe de prueba completo incluyendo meta para que el Web App
+      // no rechace el payload por falta de metadata. Usamos formId 'tata-libertad'
+      // por defecto (prueba de solicitudes).
+      const ve = (function(){ try{ const p = getTZParts('America/Caracas'); return p; }catch(_){ return null; } })();
+      const today = ve ? `${ve.day}-${ve.month}-${ve.year}` : new Date().toLocaleDateString('en-GB');
       const probe = {
         id: "test-" + Math.random().toString(36).slice(2, 8),
         at: new Date().toISOString(),
         items: [{ product: "PING", quantity: 1 }],
+        meta: {
+          formId: (window.CURRENT_FORM_ID || 'tata-libertad'),
+          sheet: (window.CURRENT_FORM_ID && window.CURRENT_FORM_ID === 'inventario-pt') ? 'INVENTARIO DE PRODUCTO TERMINADO' : 'LA TATA DE LA LIBERTAD',
+          fechaTxt: today,
+          sede: (document.getElementById('meta-sede')?.value || 'BC'),
+          tipo: 'ENTREGADO'
+        },
         ...(token ? { token } : {}),
       };
       try {

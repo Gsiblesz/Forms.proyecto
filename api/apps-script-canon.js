@@ -725,12 +725,4 @@ function _asDateDisplay_(s){
 }
 
 // Ensure HORA is formatted as yyyy-mm-dd hh:mm
-  try {
-    if (idx['HORA']) {
-      const now = new Date();
-      const formattedHora = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-${String(now.getDate()).padStart(2, '0')} ${String(now.getHours()).padStart(2, '0')}:${String(now.getMinutes()).padStart(2, '0')}`;
-      sh.getRange(1, idx['HORA'], sh.getLastRow(), 1).setValues(Array(sh.getLastRow()).fill([formattedHora]));
-    }
-  } catch (error) {
-    console.error('Error formatting HORA:', error);
-  }
+  // Nota: no introducir código que use variables externas aquí; las funciones manejan formato/columnas localmente.
