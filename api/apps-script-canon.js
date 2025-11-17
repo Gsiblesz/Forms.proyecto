@@ -414,16 +414,17 @@ function upsertOneSheet(payload,tipo,opts){
     var c=idx['CODIGO']?_norm(row[idx['CODIGO']-1]):'';
     var p=idx['PRODUCTO']?_norm(row[idx['PRODUCTO']-1]):'';
     var idKey=_pref(c,p);
-    if(f&&s){
-      keyToRowFS[f+'|'+s+'|'+idKey]=r;
-      var fsOnly=f+'|'+s;
-      if(!blockByFS[fsOnly]) blockByFS[fsOnly]={first:r,last:r}; else blockByFS[fsOnly].last=r;
-    }
+    if(f&&s&&idKey) map[f+'|'+s+'|'+idKey]=r;
   }
 
+  // Añadir logs para depuración
+  Logger.log('Procesando fila %s: fecha=%s, sede=%s, codigo=%s, producto=%s', r, f, s, c, p);
+  Logger.log('Clave generada para keyToRowFS: %s', f+'|'+s+'|'+idKey);
+  Logger.log('Contenido actual de keyToRowFS: %s', JSON.stringify(keyToRowFS));
+
+  var items=Array.isArray(payload.items)?payload.items:[];
   var updates=[];
   var missing=[];
-  var items=Array.isArray(payload.items)?payload.items:[];
   for(var i=0;i<items.length;i++){
     var it=items[i];
     var nombre=_norm(it&&(it.product||it.producto||it.name));
