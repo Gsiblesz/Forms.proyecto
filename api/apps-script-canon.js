@@ -2,8 +2,8 @@
 
 const CONFIG = {
   TOKEN: 'Pasantias90',
-  SPREADSHEET_ID: '1ILKpwrkow0daq1RqIPxsiE8ad9XaM2NsE8_AlR7MD0o',
-  SHEET: 'SOLICITUDES',
+  SPREADSHEET_ID: '1MQlP9wx199xW-gIYwf4FcjdANG9TLEkSjORiNmxJH5s',
+  SHEET: 'DefaultSheet',
   // Agregamos columna HORA (antes de FECHA); HORA contendrá "HH:mm dd-mm-aaaa" y FECHA solo "dd-mm-aaaa"
   HEAD: ['HORA','FECHA','SEDE','FAMILIA','PRODUCTO','CODIGO','UND','CANTIDAD SOLICITADA','RESPONSABLE SOLICITUD','CANTIDAD ENTREGADA','RESPONSABLE ENTREGA'],
   DELIVERY_MATCH_SCOPE: 'FECHA_SEDE_PRODUCTO',
@@ -499,14 +499,22 @@ function _json(obj,status){
 }
 
 function _resolveSpreadsheet(ssid,ssurl){
-  try{
-    if(ssid) return SpreadsheetApp.openById(ssid);
-    if(ssurl){
-      var m=String(ssurl).match(/\/d\/([^/]+)/);
-      if(m&&m[1]) return SpreadsheetApp.openById(m[1]);
-    }
-  }catch(e){}
-  return SpreadsheetApp.openById(CONFIG.SPREADSHEET_ID);
+  const ss = SpreadsheetApp.openById(ssid || CONFIG.SPREADSHEET_ID);
+  _initializeSheets(ss);
+  return ss;
+}
+
+function _initializeSheets(ss) {
+  const sheets = [
+    { name: 'MERMA', headers: ['entry_id', 'HORA', 'FECHA', 'TIPO', 'SEDE', 'EMPRESA', 'CODIGO', 'PRODUCTO', 'UND', 'CANTIDAD', 'RESPONSABLE'] },
+    { name: 'INVENTARIO DE PRODUCTO TERMINADO', headers: ['entry_id', 'HORA', 'FECHA', 'TIPO', 'SEDE', 'EMPRESA', 'CODIGO', 'PRODUCTO', 'UND', 'CANTIDAD', 'RESPONSABLE'] },
+    // Add other sheets as needed
+  ];
+
+  sheets.forEach(sheet => {
+    const sh = _getOrCreateSheet(ss, sheet.name, sheet.headers);
+    _reconcileHeaderAndOrder_(sh, sheet.headers);
+  });
 }
 
 function _getOrCreateSheet(ss,name,header){
