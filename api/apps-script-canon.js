@@ -88,12 +88,9 @@ function doPost(e){
     if(!payload||!payload.items||!payload.meta) return _json({ok:false,error:'bad payload'},400);
     // Ensure payload.meta is defined to avoid ReferenceError
     var meta = payload.meta || {};
-    var tipoMeta = meta.tipo ? String(meta.tipo).toUpperCase() : 'DEFAULT';
-
-    // Additional validation for tipoMeta
-    if (!['MERMA', 'SOLICITUD', 'ENTREGADO'].includes(tipoMeta)) {
-      return _json({ ok: false, error: `Invalid tipoMeta value: ${tipoMeta}` }, 400);
-    }
+    // tipoMeta puede venir vacío; por defecto dejamos cadena vacía y el flujo
+    // en el servidor asumirá 'ENTREGADO' cuando corresponda (compatibilidad).
+    var tipoMeta = meta.tipo ? String(meta.tipo).toUpperCase() : '';
 
     var qToken = (e && e.parameter && e.parameter.token) || '';
     var token = payload.token || qToken || '';

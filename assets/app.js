@@ -243,7 +243,7 @@ const SUBMIT_COOLDOWN_MS = 4_000;  // mantener botón deshabilitado X segundos t
 const ENABLE_LOCAL_SAVE = false;
 const STORAGE_KEY = "productos_registrados";
 const SETTINGS_KEY = "gs_settings"; // { url: string, enabled: boolean, token?: string }
-const DEFAULT_GS_URL = "https://script.google.com/macros/s/AKfycbwVdWUsq6zupdw4B8hBdLHYEcEf_2JWruGR8L-f0PynMgF5NuJXpnREtQzvhbdvAAh0PQ/exec";
+const DEFAULT_GS_URL = "https://script.google.com/macros/s/AKfycbxPITfMlT7fjSTTSCbea1TQcnnRwTPHMiqDPIa13FFqQ21dBgT5qZvn6_ojC9iprviS/exec";
 const DEFAULT_GS_TOKEN = "Pasantias90";
 const ROLE_KEY = "app_role"; // 'worker' | 'admin'
 
@@ -672,6 +672,7 @@ function main() {
     // Catálogo por formulario (si se definió)
     if (Array.isArray(cfg.catalog) && cfg.catalog.length) {
       PRODUCT_CATALOG = cfg.catalog;
+      try { console.debug('[DBG] PRODUCT_CATALOG loaded from cfg.catalog', { cfgId: cfg.id, source: 'cfg.catalog', length: PRODUCT_CATALOG.length, sample: PRODUCT_CATALOG.slice(0,5) }); } catch(_) {}
     }
     // Mapa de códigos opcional
     if (cfg.codeMap && typeof cfg.codeMap === 'object') {
@@ -741,6 +742,7 @@ function main() {
           }
         }
         PRODUCT_CATALOG = flat;
+        try { console.debug('[DBG] PRODUCT_CATALOG built from cfg.groups (tata-libertad)', { cfgId: cfg.id, groups: cfg.groups.length, length: PRODUCT_CATALOG.length, sample: PRODUCT_CATALOG.slice(0,5) }); } catch(_) {}
       }
       // Datalist de sedes
   const sedeList = document.getElementById('meta-sede');
@@ -806,6 +808,7 @@ function main() {
           }
         }
         PRODUCT_CATALOG = flat;
+        try { console.debug('[DBG] PRODUCT_CATALOG built from cfg.groups (solicitudes-pedido)', { cfgId: cfg.id, groups: cfg.groups.length, length: PRODUCT_CATALOG.length, sample: PRODUCT_CATALOG.slice(0,5) }); } catch(_) {}
       }
       // Poblar sedes igual que el formulario base (heredadas)
   const sedeList = document.getElementById('meta-sede');
@@ -1163,6 +1166,13 @@ function main() {
       tipo: document.getElementById('meta-tipo')?.value || null,
       familia: (document.getElementById('meta-tipo')?.value === 'MERMA') ? null : (document.getElementById('meta-familia')?.value || null),
     };
+    // Defensive default: asegurar que tipo siempre tenga un valor para evitar errores
+    // en el backend si algún script del cliente falla antes de asignarlo.
+    if (!metaProbe.tipo) {
+      // Para formularios de LA TATA queremos 'ENTREGADO' por defecto
+      const isTata = cfg && (cfg.id === 'tata-libertad' || cfg.id === 'solicitudes' || cfg.id === 'solicitudes-pedido');
+      metaProbe.tipo = isTata ? 'ENTREGADO' : (metaProbe.tipo || null);
+    }
     // Enviar formId lógico para que el backend rote Inventario PT si está configurado
     if (cfg && cfg.id === 'registros') {
       metaProbe.formId = 'inventario-pt';
