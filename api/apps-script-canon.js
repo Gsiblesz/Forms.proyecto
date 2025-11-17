@@ -3,6 +3,8 @@
 const CONFIG = {
   TOKEN: 'Pasantias90',
   SPREADSHEET_ID: '1MQlP9wx199xW-gIYwf4FcjdANG9TLEkSjORiNmxJH5s',
+  // Default sheet name to use when no target or meta.sheet is provided
+  SHEET: 'SOLICITUDES',
   // Agregamos columna HORA (antes de FECHA); HORA contendrá "HH:mm dd-mm-aaaa" y FECHA solo "dd-mm-aaaa"
   HEAD: ['HORA','FECHA','SEDE','FAMILIA','PRODUCTO','CODIGO','UND','CANTIDAD SOLICITADA','RESPONSABLE SOLICITUD','CANTIDAD ENTREGADA','RESPONSABLE ENTREGA'],
   DELIVERY_MATCH_SCOPE: 'FECHA_SEDE_PRODUCTO',
@@ -22,7 +24,7 @@ const CONFIG = {
     ,
     // Target explícito para el formulario LA TATA de la libertad
     'tata-libertad': {
-      ssurl: 'https://docs.google.com/spreadsheets/d/1MQlP9wx199xW-gIYwf4FcjdANG9TLEkSjORiNmxJH5s/edit?gid=1387627441',
+      ssurl: 'https://docs.google.com/spreadsheets/d/1MQlP9wx199xW-gIYwf4FcjdANG9TLEkSjORiNmxJH5s/edit?gid=214936742',
       sheet: 'LA TATA DE LA LIBERTAD',
       HEAD: ['HORA','FECHA','SEDE','FAMILIA','PRODUCTO','CODIGO','UND','CANTIDAD SOLICITADA','RESPONSABLE SOLICITUD','CANTIDAD ENTREGADA','RESPONSABLE ENTREGA']
     }
@@ -55,7 +57,8 @@ function doGet(e){
     var formId=String(p.formId||'');
     var tgt=(CONFIG.TARGETS&&CONFIG.TARGETS[formId])||null;
     var ss=tgt?_resolveSpreadsheet(tgt.ssid,tgt.ssurl):_resolveSpreadsheet(p.ssid,p.ssurl);
-    var sheetName=p.sheet||(tgt&&tgt.sheet)||CONFIG.SHEET;
+  // Prefer explicit target sheet from CONFIG.TARGETS; fallback to query param or default
+  var sheetName=(tgt&&tgt.sheet) || p.sheet || CONFIG.SHEET;
     var head=_headFor(formId);
     var sh=_getOrCreateSheet(ss,sheetName,head);
     // Si es un target específico, reconciliar nombre y orden de columnas (p.ej. PRODUCTO/PRODUCTOS, orden esperado)
@@ -187,7 +190,7 @@ function appendInventario(payload,opts){
   var dt=null; // Date con la hora/minuto indicados sobre la fecha seleccionada
   try{
     if(hora){
-      var fkey=_asDateKey_(fecha); // YYYY-MM-DD
+  var fkey=_asDateKey_(fechaIso); // YYYY-MM-DD
       var p=fkey.split('-');
       var yy=Number(p[0]||0), mm1=Number(p[1]||1)-1, dd=Number(p[2]||1);
       var hm=String(hora||'').split(':');
@@ -281,19 +284,7 @@ function upsertMerma(payload,opts){
   var dt=null;
   try{
     if(hora){
-      var fkey=_asDateKey_(fecha); // YYYY-MM-DD
-      var p=fkey.split('-');
-      var yy=Number(p[0]||0), mm1=Number(p[1]||1)-1, dd=Number(p[2]||1);
-      var hm=String(hora||'').split(':');
-      var HH=Number(hm[0]||0), MM=Number(hm[1]||0);
-      dt=new Date(yy,mm1,dd,HH,MM,0,0);
-    }
-  }catch(_){ dt=null; }
-  // Construir Date real si la hora está presente para escribir en la hoja usando tipo Date
-  var dt=null;
-  try{
-    if(hora){
-      var fkey=_asDateKey_(fecha); // YYYY-MM-DD
+      var fkey=_asDateKey_(fechaIso); // YYYY-MM-DD
       var p=fkey.split('-');
       var yy=Number(p[0]||0), mm1=Number(p[1]||1)-1, dd=Number(p[2]||1);
       var hm=String(hora||'').split(':');
@@ -402,7 +393,7 @@ function upsertOneSheet(payload,tipo,opts){
     if(idx['FECHA']) sh.getRange(1, idx['FECHA'], sh.getMaxRows()).setNumberFormat('yyyy-mm-dd');
   }catch(_){ }
   // Ensure SEDE is always 'BC' for MERMA
-  if (tipoMeta === 'MERMA') {
+  if (tipo === 'MERMA') {
     payload.meta.sede = 'BC'; // Force SEDE to BC
   }
   var sede=_canonSede(payload.meta&&payload.meta.sede);
@@ -424,7 +415,7 @@ function upsertOneSheet(payload,tipo,opts){
     var c=idx['CODIGO']?_norm(row[idx['CODIGO']-1]):'';
     var p=idx['PRODUCTO']?_norm(row[idx['PRODUCTO']-1]):'';
     var idKey=_pref(c,p);
-    if(f&&s&&idKey) map[f+'|'+s+'|'+idKey]=r;
+  if(f&&s&&idKey) keyToRowFS[f+'|'+s+'|'+idKey]=r;
   }
 
   // Añadir logs para depuración
@@ -516,8 +507,11 @@ function _resolveSpreadsheet(ssid,ssurl){
 }
 
 function _getOrCreateSheet(ss,name,header){
-  var sh=ss.getSheetByName(name);
-  if(!sh) sh=ss.insertSheet(name);
+  // Normalize sheet name: avoid creating sheets with empty names
+  var sheetName = String(name||'').trim();
+  if(!sheetName) sheetName = CONFIG.SHEET || 'Sheet1';
+  var sh=ss.getSheetByName(sheetName);
+  if(!sh) sh=ss.insertSheet(sheetName);
   // Sólo inicializa encabezados si la hoja está vacía (no pisa hojas existentes)
   var lastRow=sh.getLastRow();
   if(lastRow<=0){
