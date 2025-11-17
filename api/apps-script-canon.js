@@ -3,7 +3,6 @@
 const CONFIG = {
   TOKEN: 'Pasantias90',
   SPREADSHEET_ID: '1MQlP9wx199xW-gIYwf4FcjdANG9TLEkSjORiNmxJH5s',
-  SHEET: 'NOVIEMBRE 2025 REGISTRO DE PRODUCCIÓN',
   // Agregamos columna HORA (antes de FECHA); HORA contendrá "HH:mm dd-mm-aaaa" y FECHA solo "dd-mm-aaaa"
   HEAD: ['HORA','FECHA','SEDE','FAMILIA','PRODUCTO','CODIGO','UND','CANTIDAD SOLICITADA','RESPONSABLE SOLICITUD','CANTIDAD ENTREGADA','RESPONSABLE ENTREGA'],
   DELIVERY_MATCH_SCOPE: 'FECHA_SEDE_PRODUCTO',
@@ -87,27 +86,31 @@ function doPost(e){
       payload = payload.entry;
     }
     if(!payload||!payload.items||!payload.meta) return _json({ok:false,error:'bad payload'},400);
-    var qToken=(e&&e.parameter&&e.parameter.token)||'';
-    var token=payload.token||qToken||'';
-    if(CONFIG.TOKEN&&token&&token!==CONFIG.TOKEN) return _json({ok:false,error:'invalid token'},401);
+    // Ensure payload.meta is defined to avoid ReferenceError
+    var meta = payload.meta || {};
+    var tipoMeta = meta.tipo ? String(meta.tipo).toUpperCase() : '';
 
-    var p=(e&&e.parameter)||{};
-    var formId=(payload.meta&&payload.meta.formId)||'';
-    var tgt=(CONFIG.TARGETS&&CONFIG.TARGETS[formId])||null;
-    var sheetName=(tgt&&tgt.sheet)||(payload.meta&&payload.meta.sheet)||p.sheet||CONFIG.SHEET;
-    var ss=tgt?_resolveSpreadsheet(tgt.ssid,tgt.ssurl):_resolveSpreadsheet((payload.meta&&payload.meta.ssid)||p.ssid,(payload.meta&&payload.meta.ssurl)||p.ssurl);
-    var tipoMeta=(payload.meta&&payload.meta.tipo)?String(payload.meta.tipo).toUpperCase():'';
+    var qToken = (e && e.parameter && e.parameter.token) || '';
+    var token = payload.token || qToken || '';
+    if (CONFIG.TOKEN && token && token !== CONFIG.TOKEN) return _json({ ok: false, error: 'invalid token' }, 401);
+
+    var p = (e && e.parameter) || {};
+    var formId = (meta.formId) || '';
+    var tgt = (CONFIG.TARGETS && CONFIG.TARGETS[formId]) || null;
+    var sheetName = (tgt && tgt.sheet) || meta.sheet || p.sheet || CONFIG.SHEET;
+    var ss = tgt ? _resolveSpreadsheet(tgt.ssid, tgt.ssurl) : _resolveSpreadsheet(meta.ssid || p.ssid, meta.ssurl || p.ssurl);
+
     var res;
-    if(tgt&&tgt.MODE==='append'){
-      res=appendInventario(payload,{ss:ss,sheetName:sheetName,head:tgt.HEAD});
-    } else if(tipoMeta==='MERMA'){
+    if (tgt && tgt.MODE === 'append') {
+      res = appendInventario(payload, { ss: ss, sheetName: sheetName, head: tgt.HEAD });
+    } else if (tipoMeta === 'MERMA') {
       // Flujo MERMA: usar HEAD del target si existe, si no usar el HEAD por defecto (incluye MERMA)
-      var headForFlow = (tgt && Array.isArray(tgt.HEAD))? tgt.HEAD : _defaultRequiredHead_();
-      res=upsertMerma(payload,{ss:ss,sheetName:sheetName,head:headForFlow});
+      var headForFlow = (tgt && Array.isArray(tgt.HEAD)) ? tgt.HEAD : _defaultRequiredHead_();
+      res = upsertMerma(payload, { ss: ss, sheetName: sheetName, head: headForFlow });
     } else {
-      var tipo=(tipoMeta==='SOLICITUD')?'SOLICITUD':'ENTREGADO';
-      var headForFlow = (tgt && Array.isArray(tgt.HEAD))? tgt.HEAD : _defaultRequiredHead_();
-      res=upsertOneSheet(payload,tipo,{ss:ss,sheetName:sheetName,head:headForFlow});
+      var tipo = (tipoMeta === 'SOLICITUD') ? 'SOLICITUD' : 'ENTREGADO';
+      var headForFlow = (tgt && Array.isArray(tgt.HEAD)) ? tgt.HEAD : _defaultRequiredHead_();
+      res = upsertOneSheet(payload, tipo, { ss: ss, sheetName: sheetName, head: headForFlow });
     }
     var debug=(p.debug==='1')||!!payload.debug;
     if(debug){
