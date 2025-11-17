@@ -1025,8 +1025,27 @@ function main() {
       el.textContent = `${hh}:${mm}`;
     } catch {}
   }
+  // Indicador visual: muestra si la hora será incluida en el envío
+  function updateHoraIndicator() {
+    try {
+      const ind = document.getElementById('meta-hora-indicator');
+      const dateEl = document.getElementById('meta-date');
+      if (!ind || !dateEl) return;
+      const isTodayFlag = String(dateEl.dataset?.isToday || '').trim() === '1';
+      if (isTodayFlag) {
+        ind.textContent = 'Hora: incluida';
+        ind.style.background = '#1b6e3a';
+        ind.style.color = '#fff';
+      } else {
+        ind.textContent = 'Hora: omitida';
+        ind.style.background = '#6b6b6b';
+        ind.style.color = '#fff';
+      }
+    } catch {}
+  }
   // Actualizar al cargar y cada minuto
   updateVEClock();
+  try { updateHoraIndicator(); } catch {}
   try { setInterval(updateVEClock, 60 * 1000); } catch {}
 
   // Botón rápido para establecer la fecha de hoy (dd-mm-aaaa)
@@ -1037,8 +1056,11 @@ function main() {
       const iso = `${ve.day||'01'}-${ve.month||'01'}-${ve.year||'1970'}`;
       const dateInput = document.getElementById("meta-date");
       if (dateInput) dateInput.value = iso;
+      // Marcar el input como 'hoy' para que el submit incluya la hora
+      try { if (dateInput) dateInput.dataset.isToday = '1'; } catch {}
       // actualizar reloj visible
       updateVEClock();
+      try { updateHoraIndicator(); } catch {}
     });
   }
   if (setYesterdayBtn) {
@@ -1051,6 +1073,8 @@ function main() {
       const iso = `${dd}-${mm}-${yyyy}`;
       const dateInput = document.getElementById("meta-date");
       if (dateInput) dateInput.value = iso;
+      try { if (dateInput) dateInput.dataset.isToday = '0'; } catch {}
+      try { updateHoraIndicator(); } catch {}
     });
   }
 
@@ -1059,7 +1083,29 @@ function main() {
   if (dateInputInit && !dateInputInit.value) {
     const ve = getTZParts('America/Caracas') || {};
     dateInputInit.value = `${ve.day||'01'}-${ve.month||'01'}-${ve.year||'1970'}`;
+    try { dateInputInit.dataset.isToday = '1'; } catch {}
+    try { updateHoraIndicator(); } catch {}
   }
+
+  // Sincronizar el flag isToday cuando el usuario edita manualmente la fecha
+  try {
+    const dateElWatch = document.getElementById('meta-date');
+    if (dateElWatch) {
+      const syncIsToday = () => {
+        try {
+          const ve = getTZParts('America/Caracas') || {};
+          const todayStr = `${ve.day||'01'}-${ve.month||'01'}-${ve.year||'1970'}`;
+          const val = String(dateElWatch.value || '').trim();
+          dateElWatch.dataset.isToday = (val === todayStr) ? '1' : '0';
+          try { updateHoraIndicator(); } catch {}
+        } catch {}
+      };
+      dateElWatch.addEventListener('input', syncIsToday);
+      dateElWatch.addEventListener('change', syncIsToday);
+      // sincronizar ahora mismo
+      syncIsToday();
+    }
+  } catch {}
 
   let isSubmitting = false;
   form.addEventListener("submit", async (e) => {
@@ -1094,8 +1140,10 @@ function main() {
       const ve = getTZParts('America/Caracas');
       if (ve) {
         const todayStr = `${ve.day}-${ve.month}-${ve.year}`; // dd-mm-aaaa
-        const selectedDate = String(document.getElementById("meta-date")?.value || '').trim();
-        if (selectedDate === todayStr) {
+        const dateEl = document.getElementById("meta-date");
+        const selectedDate = String(dateEl?.value || '').trim();
+        const isTodayFlag = String(dateEl?.dataset?.isToday || '').trim() === '1';
+        if (isTodayFlag || selectedDate === todayStr) {
           const hh = String(ve.hour||'00').padStart(2,'0');
           const mm = String(ve.minute||'00').padStart(2,'0');
           metaProbe.horaTxt = `${hh}:${mm}`;
