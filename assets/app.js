@@ -661,7 +661,7 @@ function main() {
       try {
         const base = (Array.isArray(formsList) ? formsList : []).find(f => f.id === cfg.inheritFrom);
         if (base && typeof base === 'object') {
-          if (!cfg.groups && Array.isArray(base.groups)) cfg.groups = base
+          if (!cfg.groups && Array.isArray(base.groups)) cfg.groups = base.groups
           if (!cfg.catalog && Array.isArray(base.catalog)) cfg.catalog = base.catalog;
           if (!cfg.codeMap && base.codeMap) cfg.codeMap = base.codeMap;
           if (!cfg.undMap && base.undMap) cfg.undMap = base.undMap;
