@@ -105,6 +105,14 @@ function doPost(e){
     var sheetName = (tgt && tgt.sheet) || meta.sheet || p.sheet || CONFIG.SHEET;
     var ss = tgt ? _resolveSpreadsheet(tgt.ssid, tgt.ssurl) : _resolveSpreadsheet(meta.ssid || p.ssid, meta.ssurl || p.ssurl);
 
+    // Temporary debugging logs: help determine which deployed script handled the request
+    try{
+      Logger.log('doPost start: formId=%s, tipoMeta=%s, token=%s', formId, tipoMeta, token);
+      Logger.log('meta payload: %s', JSON.stringify(meta));
+      Logger.log('resolved sheetName: %s', sheetName);
+      try{ Logger.log('resolved spreadsheet id: %s', ss && ss.getId ? ss.getId() : 'no-ss'); }catch(e){ Logger.log('error getting ss id: %s', String(e)); }
+    }catch(_){ /* ignore logging errors */ }
+
     var res;
     if (tgt && tgt.MODE === 'append') {
       res = appendInventario(payload, { ss: ss, sheetName: sheetName, head: tgt.HEAD });
