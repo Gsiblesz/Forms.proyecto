@@ -747,7 +747,10 @@ function main() {
         sedeList.innerHTML = '';
         cfg.sedes.forEach(s => {
           const opt = document.createElement('option');
-          opt.value = s; sedeList.appendChild(opt);
+          opt.value = s;
+          // mostrar texto legible en el <select>
+          opt.textContent = s;
+          sedeList.appendChild(opt);
         });
       }
       // Cambiar etiqueta de responsable a "Entregado por"
@@ -807,7 +810,7 @@ function main() {
   const sedeList = document.getElementById('meta-sede');
       if (sedeList && Array.isArray(cfg.sedes)) {
         sedeList.innerHTML = '';
-        cfg.sedes.forEach(s => { const opt = document.createElement('option'); opt.value = s; sedeList.appendChild(opt); });
+        cfg.sedes.forEach(s => { const opt = document.createElement('option'); opt.value = s; opt.textContent = s; sedeList.appendChild(opt); });
       }
       // Asegurar etiqueta de responsable por defecto
       const lbl = document.getElementById('label-resp');
@@ -821,7 +824,7 @@ function main() {
         sedeList.innerHTML = '';
         cfg.sedes.forEach(s => {
           const opt = document.createElement('option');
-          opt.value = s; sedeList.appendChild(opt);
+          opt.value = s; opt.textContent = s; sedeList.appendChild(opt);
         });
       }
       // etiqueta de responsable
@@ -867,7 +870,7 @@ function main() {
   const sedeList = document.getElementById('meta-sede');
     if (sedeList && Array.isArray(cfg.sedes)) {
       sedeList.innerHTML = '';
-      cfg.sedes.forEach(s => { const opt = document.createElement('option'); opt.value = s; sedeList.appendChild(opt); });
+      cfg.sedes.forEach(s => { const opt = document.createElement('option'); opt.value = s; opt.textContent = s; sedeList.appendChild(opt); });
     }
     // Controles extra: Tipo de carga y Empresa (usa los ids genéricos meta-tipo/meta-familia)
     const extra = document.getElementById('form-extra');
@@ -928,14 +931,25 @@ function main() {
       if (empresaWrap) empresaWrap.style.display = '';
       if (devNote) devNote.style.display = isDev ? '' : 'none';
 
-      // Si es devoluciones, solo permitir BELLO CAMPO
+      // Si es devoluciones, forzar y bloquear la sede a BELLO CAMPO
       if (isDev) {
-        const isBelloCampo = sede === 'BELLO CAMPO' || sede === 'BC';
+        try {
+          if (sedeInput) {
+            // establecer valor visible completo cuando sea necesario
+            sedeInput.value = 'BELLO CAMPO';
+            sedeInput.disabled = true; // impedir elegir otra sede
+          }
+        } catch (e) {}
+        const isBelloCampo = (sede === 'BELLO CAMPO' || sede === 'BC' || (sedeInput && (String(sedeInput.value||'').toUpperCase() === 'BELLO CAMPO')));
         if (!isBelloCampo) {
+          // En caso extraordinario, ocultar filas y limpiar catálogo
           setItemsVisible(false);
           applyCatalog([]);
           return;
         }
+      } else {
+        // cuando no es devoluciones, asegurar que el control de sede esté habilitado
+        try { if (sedeInput) sedeInput.disabled = false; } catch (e) {}
       }
 
       // Elegir catálogo según EMPRESA tanto para Inventario de Cierre como Devoluciones
@@ -1110,6 +1124,17 @@ function main() {
   let isSubmitting = false;
   form.addEventListener("submit", async (e) => {
     e.preventDefault();
+    // Validar que la sede esté seleccionada cuando el control está visible
+    try {
+      const sedeEl = document.getElementById('meta-sede');
+      if (sedeEl && !sedeEl.disabled && sedeEl.offsetParent !== null) {
+        const val = String(sedeEl.value || '').trim();
+        if (!val) {
+          updateResult(`<span style="color:#ffb3b3">Selecciona una sede antes de enviar.</span>`);
+          return;
+        }
+      }
+    } catch {}
     const items = readForm();
     const v = validate(items);
     if (!v.ok) {
