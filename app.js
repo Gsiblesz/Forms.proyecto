@@ -94,7 +94,7 @@ const SUBMIT_COOLDOWN_MS = 4_000;  // mantener botón deshabilitado X segundos t
 const ENABLE_LOCAL_SAVE = false;
 const STORAGE_KEY = "productos_registrados";
 const SETTINGS_KEY = "gs_settings"; // { url: string, enabled: boolean, token?: string }
-const DEFAULT_GS_URL = "https://script.google.com/macros/s/AKfycbynfn_TNlInWQuwb_g1OeFQOxCwFKS1eXBBVXeGRPyM8elXjeIwx1ao-NQaDQuKxl5Rtg/exec"; // actualizado (2025-11-13)
+const DEFAULT_GS_URL = "https://script.google.com/macros/s/AKfycbwhKRmhvehKwWx_IT6ufxExvUjvdekkrs65jbJdrSNu-8yj41OHvd-KEsvBmP5GvylArw/exec"; // actualizado (2025-11-13)
 const DEFAULT_GS_TOKEN = "Pasantias90";
 const ROLE_KEY = "app_role"; // 'worker' | 'admin'
 
@@ -519,7 +519,7 @@ function main() {
         PRODUCT_CATALOG = flat;
       }
       // Datalist de sedes
-      const sedeList = document.getElementById('sede-list');
+  const sedeList = document.getElementById('meta-sede');
       if (sedeList && Array.isArray(cfg.sedes)) {
         sedeList.innerHTML = '';
         cfg.sedes.forEach(s => {
@@ -554,7 +554,7 @@ function main() {
         PRODUCT_CATALOG = flat;
       }
       // Poblar sedes igual que el formulario base (heredadas)
-      const sedeList = document.getElementById('sede-list');
+  const sedeList = document.getElementById('meta-sede');
       if (sedeList && Array.isArray(cfg.sedes)) {
         sedeList.innerHTML = '';
         cfg.sedes.forEach(s => { const opt = document.createElement('option'); opt.value = s; sedeList.appendChild(opt); });
@@ -566,7 +566,7 @@ function main() {
     // Personalización por formulario: CONGELADOS HOJALDRE (simple)
     if (cfg.id === 'congelados-hojaldre') {
       // poblar sedes si están definidas
-      const sedeList = document.getElementById('sede-list');
+  const sedeList = document.getElementById('meta-sede');
       if (sedeList && Array.isArray(cfg.sedes)) {
         sedeList.innerHTML = '';
         cfg.sedes.forEach(s => {
@@ -610,7 +610,7 @@ function main() {
   // Personalización por formulario: INVENTARIO PRODUCTO TERMINADO (alias: registros)
   if (cfg && (cfg.id === 'inventario-pt' || cfg.id === 'registros')) {
     // poblar sedes si están definidas (nombres completos)
-    const sedeList = document.getElementById('sede-list');
+  const sedeList = document.getElementById('meta-sede');
     if (sedeList && Array.isArray(cfg.sedes)) {
       sedeList.innerHTML = '';
       cfg.sedes.forEach(s => { const opt = document.createElement('option'); opt.value = s; sedeList.appendChild(opt); });
