@@ -108,9 +108,32 @@ function doPost(e){
 
     var p = (e && e.parameter) || {};
     var formId = (meta.formId) || '';
+    // First try explicit mapping by formId
     var tgt = (CONFIG.TARGETS && CONFIG.TARGETS[formId]) || null;
+    // Defensive fallback: if no formId or no target matched, try to detect target from meta.ssurl/meta.ssid or meta.sheet
+    if(!tgt && meta){
+      try{
+        for(var _k in CONFIG.TARGETS){
+          var _t = CONFIG.TARGETS[_k];
+          if(!_t) continue;
+          // try match by ssurl id
+          var m = String(_t.ssurl||'').match(/\/d\/([^/]+)/);
+          var tid = (m && m[1])?m[1]:'';
+          if(tid && (String(meta.ssurl||'').indexOf(tid)!==-1 || String(meta.ssid||'').indexOf(tid)!==-1)){
+            tgt = _t; formId = _k; break;
+          }
+          // try match by sheet/tab name
+          if(meta.sheet && _t.sheet && String(meta.sheet).trim().toLowerCase()===String(_t.sheet).trim().toLowerCase()){
+            tgt = _t; formId = _k; break;
+          }
+        }
+      }catch(_){ /* ignore detection errors */ }
+    }
+
+    // Resolve sheetName and spreadsheet according to the resolved target (if any)
     var sheetName = (tgt && tgt.sheet) || meta.sheet || p.sheet || CONFIG.SHEET;
     var ss = tgt ? _resolveSpreadsheet(tgt.ssid, tgt.ssurl) : _resolveSpreadsheet(meta.ssid || p.ssid, meta.ssurl || p.ssurl);
+    try{ Logger.log('doPost resolved formId=%s target=%s sheet=%s', formId, tgt?('yes-'+(tgt.sheet||'')):'none', sheetName); }catch(_){ }
 
     // Temporary debugging logs: help determine which deployed script handled the request
     try{
@@ -362,7 +385,9 @@ function upsertMerma(payload,opts){
     var codigo=_norm(it.code);
     var und=_norm(it.und);
   var qty=_toInt(it.quantity);
-    var idKey=_pref(codigo,nombre);
+  var idKey=_pref(codigo,nombre);
+  // fsKey: fecha|sede|idKey used for indexing/creating new rows when needed
+  var fsKey = (fechaIso && sede && idKey) ? (fechaIso+'|'+sede+'|'+idKey) : '';
     if(!idKey) continue;
 
   var fsKey=(fechaKey&&sede&&idKey)?(fechaKey+'|'+sede+'|'+idKey):'';
