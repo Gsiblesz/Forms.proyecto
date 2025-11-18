@@ -13,7 +13,7 @@ const CONFIG = {
   ALWAYS_CREATE_WHEN_SIN_SOLICITUD: true,
   TARGETS: {
     'inventario-pt': {
-      ssurl: 'https://docs.google.com/spreadsheets/d/1MQlP9wx199xW-gIYwf4FcjdANG9TLEkSjORiNmxJH5s/edit?gid=1387627441',
+      ssurl: 'https://docs.google.com/spreadsheets/d/1TlsAVq8pauOxwHHCWGL8I740pGZ5ftpYC3gwvEPo1eE/edit?gid=1406805867',
       sheet: 'INVENTARIO DE PRODUCTO TERMINADO',
       // Mantener primeros 5 como están y reordenar bloque de producto
       // entry_id, FECHA (con hora incluida), TIPO, SEDE, EMPRESA, CODIGO, PRODUCTO, UND, CANTIDAD, RESPONSABLE
@@ -35,6 +35,9 @@ const CONFIG = {
 function _defaultRequiredHead_(){ return CONFIG.HEAD.concat(['MERMA']); }
 function _headFor(formId){ var t=CONFIG.TARGETS&&CONFIG.TARGETS[formId]; return (t&&Array.isArray(t.HEAD))?t.HEAD.slice(0):_defaultRequiredHead_(); }
 function _canonSede(raw){ const s=String(raw||'').trim().toUpperCase(); if(s==='BC'||s==='BELLO CAMPO') return 'BELLO CAMPO'; if(s==='E PB-2'||s==='E PB2'||s==='E PB') return 'E PB-2'; if(s==='PB'||s==='PALOS GRANDES'||s==='LOS PALOS GRANDES') return 'LOS PALOS GRANDES'; if(s==='SL'||s==='SAN LUIS') return 'SAN LUIS'; return s; }
+
+// Raw sede: return the trimmed, uppercased value exactly as provided by the client
+function _rawSede(raw){ return String(raw||'').trim().toUpperCase(); }
 
 function doGet(e){
   var p=(e&&e.parameter)||{};
@@ -116,15 +119,15 @@ function doPost(e){
 
     var res;
     if (tgt && tgt.MODE === 'append') {
-      res = appendInventario(payload, { ss: ss, sheetName: sheetName, head: tgt.HEAD });
+      res = appendInventario(payload, { ss: ss, sheetName: sheetName, head: tgt.HEAD, formId: formId });
     } else if (tipoMeta === 'MERMA') {
       // Flujo MERMA: usar HEAD del target si existe, si no usar el HEAD por defecto (incluye MERMA)
       var headForFlow = (tgt && Array.isArray(tgt.HEAD)) ? tgt.HEAD : _defaultRequiredHead_();
-      res = upsertMerma(payload, { ss: ss, sheetName: sheetName, head: headForFlow });
+      res = upsertMerma(payload, { ss: ss, sheetName: sheetName, head: headForFlow, formId: formId });
     } else {
       var tipo = (tipoMeta === 'SOLICITUD') ? 'SOLICITUD' : 'ENTREGADO';
       var headForFlow = (tgt && Array.isArray(tgt.HEAD)) ? tgt.HEAD : _defaultRequiredHead_();
-      res = upsertOneSheet(payload, tipo, { ss: ss, sheetName: sheetName, head: headForFlow });
+      res = upsertOneSheet(payload, tipo, { ss: ss, sheetName: sheetName, head: headForFlow, formId: formId });
     }
     var debug=(p.debug==='1')||!!payload.debug;
     if(debug){
@@ -191,7 +194,9 @@ function appendInventario(payload,opts){
   // Tomar hora solo si viene del cliente (HOY). Si no, dejar sin hora.
   var hora=(payload.meta&&payload.meta.horaTxt)?String(payload.meta.horaTxt).trim():'';
   var tipo=String(payload.meta&&payload.meta.tipo||'').toUpperCase();
-  var sede=_canonSede(payload.meta&&payload.meta.sede);
+  // Decide whether to preserve raw sede codes (for forms like 'tata-libertad')
+  var formIdOpt = (opts && opts.formId) ? String(opts.formId).toLowerCase() : '';
+  var sede = (formIdOpt === 'tata-libertad') ? _rawSede(payload.meta&&payload.meta.sede) : _canonSede(payload.meta&&payload.meta.sede);
   var empresa=String(payload.meta&&payload.meta.familia||'').trim();
   var resp=String(payload.meta&&payload.meta.responsable||'').trim();
   // Construir Date real para FECHA con hora de Caracas
@@ -406,7 +411,9 @@ function upsertOneSheet(payload,tipo,opts){
   if (tipo === 'MERMA') {
     payload.meta.sede = 'BC'; // Force SEDE to BC
   }
-  var sede=_canonSede(payload.meta&&payload.meta.sede);
+  // Respect raw codes for specific forms (e.g. 'tata-libertad') otherwise use canonical names
+  var formIdOpt = (opts && opts.formId) ? String(opts.formId).toLowerCase() : '';
+  var sede = (formIdOpt === 'tata-libertad') ? _rawSede(payload.meta&&payload.meta.sede) : _canonSede(payload.meta&&payload.meta.sede);
   var resp=_norm(payload.meta&&payload.meta.responsable);
   var solicitudId=(payload.meta&&payload.meta.solicitudId)?String(payload.meta.solicitudId):'';
   var sinSolicitud=!!(payload.meta&&payload.meta.sinSolicitud);
@@ -418,14 +425,15 @@ function upsertOneSheet(payload,tipo,opts){
   var keyToRowFS={};
   var blockByFS={};
 
+  // Decide whether this flow should use raw sede codes (formIdOpt already set above)
   for(var r=2;r<=values.length;r++){
     var row=values[r-1];
-  var f=_asDateKey_(row[idx['FECHA']-1]);
-    var s=_canonSede(row[idx['SEDE']-1]);
+    var f=_asDateKey_(row[idx['FECHA']-1]);
+    var s = (formIdOpt === 'tata-libertad') ? _rawSede(row[idx['SEDE']-1]) : _canonSede(row[idx['SEDE']-1]);
     var c=idx['CODIGO']?_norm(row[idx['CODIGO']-1]):'';
     var p=idx['PRODUCTO']?_norm(row[idx['PRODUCTO']-1]):'';
     var idKey=_pref(c,p);
-  if(f&&s&&idKey) keyToRowFS[f+'|'+s+'|'+idKey]=r;
+    if(f&&s&&idKey) keyToRowFS[f+'|'+s+'|'+idKey]=r;
   }
 
   // Registro resumen para depuración: número de entradas indexadas
@@ -667,20 +675,6 @@ function _ensureColumnsAndIndex_(sh,requiredHead){
 function _norm(v){ return String(v==null?'':v).trim().toUpperCase(); }
 function _pref(a,b){ return a?a:b; }
 // Convierte valores a número robustamente: maneja strings con coma decimal, nulos y NaN
-function _toNumber(v){
-  try{
-    if(v==null) return 0;
-    var s=String(v).trim();
-    if(s==='') return 0;
-    // Reemplaza coma decimal por punto (p. ej. "2,5" -> "2.5")
-    s = s.replace(/,/g, '.');
-    var n = Number(s);
-    if(Number.isFinite(n)) return n;
-    // último intento: parseFloat
-    n = parseFloat(s);
-    return Number.isFinite(n)?n:0;
-  }catch(_){ return 0; }
-}
 // Convierte a entero (estricto): acepta sólo enteros; si recibe number se trunca.
 // No acepta comas ni decimales en strings — entradas no enteras devuelven 0.
 function _toInt(v){
@@ -739,24 +733,7 @@ function _asTimeString(d){
     return hh+':'+mm;
   }catch(_){ return ''; }
 }
-
 // Asegura formato de fecha de visualización dd-mm-aaaa
-function _asDateDisplay_(s){
-  if(!s) return '';
-  var str=String(s).trim();
-  var mISO=str.match(/^(\d{4})-(\d{2})-(\d{2})$/); // YYYY-MM-DD -> DD-MM-YYYY
-  if(mISO){ return mISO[3]+'-'+mISO[2]+'-'+mISO[1]; }
-  var mDMY=str.match(/^(\d{2})-(\d{2})-(\d{4})$/); // ya dd-mm-aaaa
-  if(mDMY){ return str; }
-  var d=new Date(str);
-  if(!isNaN(d)){
-    var dd=('0'+d.getDate()).slice(-2);
-    var mm=('0'+(d.getMonth()+1)).slice(-2);
-    var yy=d.getFullYear();
-    return dd+'-'+mm+'-'+yy;
-  }
-  return str;
-}
-
+// (función _asDateDisplay_ se eliminó porque no estaba en uso; reintroducir si se necesita)
 // Ensure HORA is formatted as yyyy-mm-dd hh:mm
   // Nota: no introducir código que use variables externas aquí; las funciones manejan formato/columnas localmente.
