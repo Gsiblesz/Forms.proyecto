@@ -91,9 +91,10 @@ function doPost(e){
   if(!payload || !payload.items) return _json({ok:false,error:'bad payload, missing items'},400);
   // Ensure payload.meta is defined to avoid ReferenceError (some clients omit meta)
   var meta = payload.meta || {};
-    // tipoMeta puede venir vacío; por defecto dejamos cadena vacía y el flujo
-    // en el servidor asumirá 'ENTREGADO' cuando corresponda (compatibilidad).
-    var tipoMeta = meta.tipo ? String(meta.tipo).toUpperCase() : '';
+  // tipoMeta puede venir vacío; normalizamos recortando espacios y forzando mayúsculas
+  var tipoMeta = meta && meta.tipo ? String(meta.tipo).trim().toUpperCase() : '';
+  // Si no se proporciona tipo pero el formId indica 'merma', inferir MERMA
+  try{ if(!tipoMeta && meta && meta.formId && String(meta.formId).toLowerCase().indexOf('merma')!==-1) tipoMeta = 'MERMA'; }catch(_){ }
 
     var qToken = (e && e.parameter && e.parameter.token) || '';
     var token = payload.token || qToken || '';
