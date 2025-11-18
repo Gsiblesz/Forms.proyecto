@@ -243,7 +243,7 @@ const SUBMIT_COOLDOWN_MS = 4_000;  // mantener botón deshabilitado X segundos t
 const ENABLE_LOCAL_SAVE = false;
 const STORAGE_KEY = "productos_registrados";
 const SETTINGS_KEY = "gs_settings"; // { url: string, enabled: boolean, token?: string }
-const DEFAULT_GS_URL = "https://script.google.com/macros/s/AKfycbzsI5R6d2FPWNqEMwxLUo5FTaY0uYDN0Sa-7SFcQ7rlsn2BmaYKNxgGj4gFxALvDntlYQ/exec";
+const DEFAULT_GS_URL = "https://script.google.com/macros/s/AKfycbwlt01PbSVLA0uoOpp8pr5U84odcfISYUWQoRi_f-bibtYN140cEEnPiciFLBtRah1HEw/exec";
 const DEFAULT_GS_TOKEN = "Pasantias90";
 const ROLE_KEY = "app_role"; // 'worker' | 'admin'
 
@@ -535,27 +535,40 @@ async function maybeSendToSheets(entry) {
 
 function updateResult(message = null, type = "info") {
   const el = document.getElementById("result");
-  if (!el) return;
+  const settingsMsg = document.getElementById("settings-msg");
+  // Si no hay elemento `#result` (p. ej. estamos en menu.html), usar el span pequeño
+  // `#settings-msg` como fallback para mostrar el resultado de la prueba.
+  if (!el && !settingsMsg) return;
   if (!ENABLE_LOCAL_SAVE && message == null) {
     // Sin guardado local: no mostramos resumen, solo mensajes explícitos
-    el.classList.add("hidden");
-    el.innerHTML = "";
+    if (el) { el.classList.add("hidden"); el.innerHTML = ""; }
+    if (!el && settingsMsg) { settingsMsg.textContent = ""; }
     return;
   }
   if (ENABLE_LOCAL_SAVE && message == null) {
     const all = JSON.parse(localStorage.getItem(STORAGE_KEY) || "[]");
     if (all.length === 0) {
-      el.classList.add("hidden");
-      el.innerHTML = "";
+      if (el) { el.classList.add("hidden"); el.innerHTML = ""; }
+      if (!el && settingsMsg) { settingsMsg.textContent = ""; }
       return;
     }
     const count = all.reduce((acc, e) => acc + e.items.length, 0);
-    el.classList.remove("hidden");
-    el.innerHTML = `<strong>${all.length}</strong> registro(s), <strong>${count}</strong> item(s) guardados.`;
+    if (el) {
+      el.classList.remove("hidden");
+      el.innerHTML = `<strong>${all.length}</strong> registro(s), <strong>${count}</strong> item(s) guardados.`;
+    } else if (settingsMsg) {
+      settingsMsg.textContent = `${all.length} registro(s), ${count} item(s) guardados.`;
+    }
     return;
   }
-  el.classList.remove("hidden");
-  el.innerHTML = message;
+  if (el) {
+    el.classList.remove("hidden");
+    el.innerHTML = message;
+  } else if (settingsMsg) {
+    // Mostrar texto plano en el pequeño span (strip HTML)
+    const txt = (typeof message === 'string') ? message.replace(/<[^>]*>?/gm, '') : String(message);
+    settingsMsg.textContent = txt;
+  }
 }
 
 function toCSV(entries) {

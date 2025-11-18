@@ -1,0 +1,431 @@
+/**
+ * APPS SCRIPT MASTER V10 - CONCURRENCIA ROBUSTA (LOCK SERVICE)
+ * * MEJORAS:
+ * 1. LockService: Evita que dos personas sobrescriban datos si envían a la vez.
+ * 2. Flush: Fuerza el guardado inmediato antes de liberar el turno.
+ * * REGLAS PREVIAS MANTENIDAS:
+ * - Merma siempre es 'BC'.
+ * - Siglas forzadas (BELLO CAMPO -> BC).
+ * - Ruteo unificado para Tata.
+ */
+
+const CONFIG = {
+  TOKEN: 'Pasantias90',
+  SPREADSHEET_ID: '1MQlP9wx199xW-gIYwf4FcjdANG9TLEkSjORiNmxJH5s',
+  SHEET: 'SOLICITUDES',
+  
+  TARGETS: {
+    // 1. INVENTARIO
+    'INVENTARIO PRODUCTO TERMINADO': {
+      ssurl: 'https://docs.google.com/spreadsheets/d/1TlsAVq8pauOxwHHCWGL8I740pGZ5ftpYC3gwvEPo1eE/edit?gid=1406805867',
+      sheet: 'INVENTARIO DE PRODUCTO TERMINADO',
+      HEAD: ['entry_id','HORA','FECHA','TIPO','SEDE','EMPRESA','CODIGO','PRODUCTO','UND','CANTIDAD','RESPONSABLE'],
+      MODE: 'append' 
+    },
+    // 2. TATA SOLICITUDES
+    'LA TATA DE LA LIBERTAD SOLICITUDES': {
+      ssurl: 'https://docs.google.com/spreadsheets/d/1MQlP9wx199xW-gIYwf4FcjdANG9TLEkSjORiNmxJH5s/edit?gid=1387627441',
+      sheet: 'LA TATA DE LA LIBERTAD', 
+      HEAD: ['HORA','FECHA','SEDE','FAMILIA','PRODUCTO','CODIGO','UND','CANTIDAD SOLICITADA','RESPONSABLE SOLICITUD','CANTIDAD ENTREGADA','RESPONSABLE ENTREGA','MERMA']
+    },
+    // 3. TATA REGISTROS
+    'LA TATA DE LA LIBERTAD REGISTROS': {
+      ssurl: 'https://docs.google.com/spreadsheets/d/1MQlP9wx199xW-gIYwf4FcjdANG9TLEkSjORiNmxJH5s/edit?gid=1387627441',
+      sheet: 'LA TATA DE LA LIBERTAD',
+      HEAD: ['HORA','FECHA','SEDE','FAMILIA','PRODUCTO','CODIGO','UND','CANTIDAD SOLICITADA','RESPONSABLE SOLICITUD','CANTIDAD ENTREGADA','RESPONSABLE ENTREGA','MERMA']
+    },
+    // 4. TATA MERMA
+    'MERMA — LA TATA DE LA LIBERTAD': {
+      ssurl: 'https://docs.google.com/spreadsheets/d/1MQlP9wx199xW-gIYwf4FcjdANG9TLEkSjORiNmxJH5s/edit?gid=1387627441',
+      sheet: 'LA TATA DE LA LIBERTAD',
+      HEAD: ['HORA','FECHA','SEDE','FAMILIA','PRODUCTO','CODIGO','UND','CANTIDAD SOLICITADA','RESPONSABLE SOLICITUD','CANTIDAD ENTREGADA','RESPONSABLE ENTREGA','MERMA']
+    }
+  },
+  SHEET_DEFAULT_HEAD: ['HORA','FECHA','SEDE','FAMILIA','PRODUCTO','CODIGO','UND','CANTIDAD SOLICITADA','RESPONSABLE SOLICITUD','CANTIDAD ENTREGADA','RESPONSABLE ENTREGA','MERMA'],
+  ALWAYS_CREATE_WHEN_SIN_SOLICITUD: true 
+};
+
+// ======================================================
+// ===      MOTOR PRINCIPAL CON LOCK SERVICE          ===
+// ======================================================
+
+function _defaultRequiredHead_(){ return CONFIG.SHEET_DEFAULT_HEAD; }
+function _headFor(formId){ var t=CONFIG.TARGETS&&CONFIG.TARGETS[formId]; return (t&&Array.isArray(t.HEAD))?t.HEAD.slice(0):_defaultRequiredHead_(); }
+function _cleanName(v){ if(!v) return ''; return String(v).trim().replace(/\s+/g, ' ').toUpperCase(); }
+function _canonSede(raw){ const s=String(raw||'').trim().toUpperCase(); if(s==='BC'||s==='BELLO CAMPO') return 'BELLO CAMPO'; if(s==='E PB-2'||s==='E PB2'||s==='E PB') return 'E PB-2'; if(s==='PB'||s==='PALOS GRANDES'||s==='LOS PALOS GRANDES') return 'LOS PALOS GRANDES'; if(s==='SL'||s==='SAN LUIS') return 'SAN LUIS'; return s; }
+function _rawSede(raw){ return String(raw||'').trim().toUpperCase(); }
+function _toAcronym(raw){ const s=String(raw||'').trim().toUpperCase(); if(s==='BELLO CAMPO' || s==='BC') return 'BC'; if(s==='SAN LUIS' || s==='SL') return 'SL'; if(s==='LOS PALOS GRANDES' || s==='LPG' || s.indexOf('PALOS')!==-1) return 'LPG'; return s; }
+
+function doGet(e){
+  // doGet es solo lectura, no requiere Lock estricto, pero para 'fix' podría ser útil.
+  // Se mantiene simple para velocidad de respuesta en lecturas.
+  var p=(e&&e.parameter)||{};
+  var op=String(p.op||'').toLowerCase();
+  if(op==='fix'){
+    if(CONFIG.TOKEN&&p.token&&p.token!==CONFIG.TOKEN) return _json({ok:false,error:'unauthorized'},401);
+    try{
+      var formIdFix=String(p.formId||'');
+      var tgtFix=(CONFIG.TARGETS&&CONFIG.TARGETS[formIdFix])||null;
+      if(!tgtFix) return _json({ok:false,error:'unknown formId'},400);
+      var ssFix=_resolveSpreadsheet(tgtFix.ssid,tgtFix.ssurl);
+      var out=fixSheetToHead_(ssFix,tgtFix.sheet,tgtFix.HEAD);
+      return _json({ok:true,fixed:true,sheet:out.sheet,rows:out.rows,head:out.head},200);
+    }catch(err){ return _json({ok:false,error:String(err)},500); }
+  }
+  if(op!=='list') return ContentService.createTextOutput('OK').setMimeType(ContentService.MimeType.TEXT);
+  if(CONFIG.TOKEN&&p.token&&p.token!==CONFIG.TOKEN) return _json({ok:false,error:'unauthorized'},401);
+  try{
+    var formId=String(p.formId||'');
+    var tgt=(CONFIG.TARGETS&&CONFIG.TARGETS[formId])||null;
+    var ss=tgt?_resolveSpreadsheet(tgt.ssid,tgt.ssurl):_resolveSpreadsheet(p.ssid,p.ssurl);
+    var sheetName=(tgt&&tgt.sheet) || p.sheet || CONFIG.SHEET;
+    var head=_headFor(formId);
+    var sh=_getOrCreateSheet(ss,sheetName,head);
+    if(tgt){ _reconcileHeaderAndOrder_(sh, head); }
+    var lastRow=sh.getLastRow();
+    var lastCol=sh.getLastColumn()||head.length;
+    if(tgt){ lastCol=Math.min(lastCol,head.length); }
+    var outHead=sh.getRange(1,1,1,lastCol).getValues()[0];
+    if(lastRow<=1) return _json({ok:true,head:outHead,rows:[]},200);
+    var limit=Math.max(1,Math.min(500,Number(p.limit||100)));
+    var rowCount=Math.min(limit,lastRow-1);
+    var startRow=lastRow-rowCount+1;
+    var rows=sh.getRange(startRow,1,rowCount,lastCol).getValues();
+    return _json({ok:true,head:outHead,rows:rows},200);
+  }catch(err){ return _json({ok:false,error:String(err)},500); }
+}
+
+function doPost(e){
+  // --- INICIO LOCK SERVICE ---
+  // Esto detiene otras ejecuciones simultáneas hasta que esta termine.
+  // Usar tryLock en lugar de waitLock para controlar mejor los intentos y evitar excepciones.
+  var lock = LockService.getScriptLock();
+  var gotLock = false;
+  try {
+    // Intentar adquirir el lock hasta 60 segundos; devuelve true/false en vez de lanzar.
+    gotLock = lock.tryLock(60000);
+  } catch (e) {
+    gotLock = false;
+  }
+  if (!gotLock) {
+    return _json({ok:false, error:'Servidor ocupado, intente de nuevo.'}, 503);
+  }
+  // ---------------------------
+
+  try{
+    var raw=(e&&e.postData&&e.postData.contents)||'';
+    if(!raw) return _json({ok:false,error:'no body'},400);
+    var payload=JSON.parse(raw);
+    if(payload && !payload.items && payload.entry && (payload.entry.items || payload.entry.meta)){
+      payload = payload.entry;
+    }
+    if(!payload || !payload.items) return _json({ok:false,error:'bad payload, missing items'},400);
+
+    var meta = payload.meta || {};
+    var formId = (meta.formId) || '';
+    var tipoMeta = meta && meta.tipo ? String(meta.tipo).trim().toUpperCase() : '';
+    if(!tipoMeta && String(formId).toLowerCase().indexOf('merma')!==-1) tipoMeta = 'MERMA';
+
+    var qToken = (e && e.parameter && e.parameter.token) || '';
+    var token = payload.token || qToken || '';
+    if (CONFIG.TOKEN && token && token !== CONFIG.TOKEN) return _json({ ok: false, error: 'invalid token' }, 401);
+
+    var p = (e && e.parameter) || {};
+    var tgt = (CONFIG.TARGETS && CONFIG.TARGETS[formId]) || null;
+    var sheetName = (tgt && tgt.sheet) || meta.sheet || p.sheet || CONFIG.SHEET;
+    var ss = tgt ? _resolveSpreadsheet(tgt.ssid, tgt.ssurl) : _resolveSpreadsheet(meta.ssid || p.ssid, meta.ssurl || p.ssurl);
+
+    try{ Logger.log('doPost: formId=%s, tipo=%s, sheet=%s', formId, tipoMeta, sheetName); }catch(_){}
+
+    var res;
+    if (tgt && tgt.MODE === 'append') {
+      res = appendInventario(payload, { ss: ss, sheetName: sheetName, head: tgt.HEAD, formId: formId });
+    } else if (tipoMeta === 'MERMA') {
+      var headForFlow = (tgt && Array.isArray(tgt.HEAD)) ? tgt.HEAD : _defaultRequiredHead_();
+      res = upsertMerma(payload, { ss: ss, sheetName: sheetName, head: headForFlow, formId: formId });
+    } else {
+      var tipo = (tipoMeta === 'SOLICITUD') ? 'SOLICITUD' : 'ENTREGADO';
+      var headForFlow = (tgt && Array.isArray(tgt.HEAD)) ? tgt.HEAD : _defaultRequiredHead_();
+      res = upsertOneSheet(payload, tipo, { ss: ss, sheetName: sheetName, head: headForFlow, formId: formId });
+    }
+    
+    // FUERZA EL GUARDADO FÍSICO ANTES DE SOLTAR EL LOCK
+    SpreadsheetApp.flush(); 
+
+    var debug=(p.debug==='1')||!!payload.debug;
+    if(debug){
+      var first=(payload.items&&payload.items[0])||null;
+      return _json({ok:true,sheet:res.sheet,count:res.count,idx:res.idx,firstItem:first},200);
+    }
+    return _json({ok:true,sheet:res.sheet,count:res.count},200);
+
+  }catch(err){
+    return _json({ok:false,error:String(err)},500);
+  } finally {
+    // LIBERAR EL LOCK SIEMPRE, PASE LO QUE PASE
+    lock.releaseLock();
+  }
+}
+
+// --- 1. APPEND (Inventario) ---
+function appendInventario(payload,opts){
+  var ss=opts.ss;
+  var sheetName=opts.sheetName;
+  var head=opts.head||CONFIG.SHEET_DEFAULT_HEAD;
+  var sh=_getOrCreateSheet(ss,sheetName,head);
+  _reconcileHeaderAndOrder_(sh, head);
+  var idx=_ensureColumnsAndIndex_(sh,head);
+
+  try{ if(ss.getSpreadsheetTimeZone() !== 'America/Caracas') ss.setSpreadsheetTimeZone('America/Caracas'); }catch(_){ }
+  try{
+    if(idx['HORA']) sh.getRange(1, idx['HORA'], sh.getMaxRows()).setNumberFormat('hh:mm yyyy-mm-dd');
+    if(idx['FECHA']) sh.getRange(1, idx['FECHA'], sh.getMaxRows()).setNumberFormat('yyyy-mm-dd');
+  }catch(_){ }
+
+  var entryId=String(payload.id||('e-'+Math.random().toString(36).slice(2,8))).toUpperCase();
+  var fechaRaw=payload.meta&&payload.meta.fechaTxt?String(payload.meta.fechaTxt).trim():_asDateString(payload.meta&&payload.meta.fecha);
+  var fechaIso=_asDateString(fechaRaw);
+  var hora=(payload.meta&&payload.meta.horaTxt)?String(payload.meta.horaTxt).trim():'';
+  var tipo=String(payload.meta&&payload.meta.tipo||'').toUpperCase();
+  var sede = _toAcronym(payload.meta&&payload.meta.sede); // SIGLAS
+  var empresa=String(payload.meta&&payload.meta.familia||'').trim();
+  var resp=_cleanName(payload.meta&&payload.meta.responsable); // CLEAN
+  
+  var dt=null;
+  try{
+    if(hora){
+      var fkey=_asDateKey_(fechaIso); 
+      var p=fkey.split('-');
+      var hm=String(hora||'').split(':');
+      dt=new Date(Number(p[0]),Number(p[1])-1,Number(p[2]),Number(hm[0]),Number(hm[1]),0,0);
+    }
+  }catch(_){ dt=null; }
+
+  var items=Array.isArray(payload.items)?payload.items:[];
+  var rows=[];
+  for(var i=0;i<items.length;i++){
+    var it=items[i]||{};
+    var vals=new Array(head.length).fill('');
+    if(idx['entry_id'])  vals[idx['entry_id']-1]=entryId;
+    if(idx['HORA'])      vals[idx['HORA']-1]=dt||'';
+    if(idx['FECHA'])     vals[idx['FECHA']-1]=fechaIso||'';
+    if(idx['TIPO'])      vals[idx['TIPO']-1]=tipo||'';
+    if(idx['SEDE'])      vals[idx['SEDE']-1]=sede||'';
+    if(idx['EMPRESA'])   vals[idx['EMPRESA']-1]=empresa||'';
+    if(idx['CODIGO'])    vals[idx['CODIGO']-1]=String(it.code||'').trim();
+    if(idx['PRODUCTO'])  vals[idx['PRODUCTO']-1]=String(it.product||it.name||'').trim();
+    if(idx['UND'])       vals[idx['UND']-1]=String(it.und||'').trim();
+    if(idx['CANTIDAD'])  vals[idx['CANTIDAD']-1]=_toNumber(it.quantity);
+    if(idx['RESPONSABLE']) vals[idx['RESPONSABLE']-1]=resp||'';
+    rows.push(vals);
+  }
+  if(rows.length){
+    var start=sh.getLastRow()+1;
+    sh.getRange(start,1,rows.length,head.length).setValues(rows);
+  }
+  return {sheet:sheetName,count:rows.length,idx:idx};
+}
+
+// --- 2. UPSERT MERMA (Siempre 'BC') ---
+function upsertMerma(payload,opts){
+  var ss=opts.ss;
+  var sheetName=opts.sheetName;
+  var head=opts.head||CONFIG.SHEET_DEFAULT_HEAD;
+  var sh=_getOrCreateSheet(ss,sheetName,head);
+  _reconcileHeaderAndOrder_(sh, head);
+  _dropColumnByExactHeader_(sh,'TIPO_MERMA'); 
+  var idx=_ensureColumnsAndIndex_(sh,head);
+
+  try{ if(ss.getSpreadsheetTimeZone() !== 'America/Caracas') ss.setSpreadsheetTimeZone('America/Caracas'); }catch(_){ }
+  try{
+    if(idx['HORA']) sh.getRange(1, idx['HORA'], sh.getMaxRows()).setNumberFormat('hh:mm yyyy-mm-dd');
+    if(idx['FECHA']) sh.getRange(1, idx['FECHA'], sh.getMaxRows()).setNumberFormat('yyyy-mm-dd');
+  }catch(_){ }
+
+  var fechaRaw=payload.meta&&payload.meta.fechaTxt?String(payload.meta.fechaTxt).trim():_asDateString(payload.meta&&payload.meta.fecha);
+  var fechaIso=_asDateString(fechaRaw);
+  var fechaKey=_asDateKey_(fechaIso);
+  var sede = 'BC'; // FORZADO BC
+
+  var hora=(payload.meta&&payload.meta.horaTxt)?String(payload.meta.horaTxt).trim():'';
+  var dt=null;
+  try{ if(hora){ var fkey=_asDateKey_(fechaIso); var p=fkey.split('-'); var hm=hora.split(':'); dt=new Date(Number(p[0]),Number(p[1])-1,Number(p[2]),Number(hm[0]),Number(hm[1]),0,0); } }catch(_){ dt=null; }
+
+  var values=sh.getDataRange().getValues();
+  var map={};
+  for(var r=2;r<=values.length;r++){
+    var row=values[r-1];
+    var f=_asDateKey_(row[idx['FECHA']-1]);
+    var s=_toAcronym(row[idx['SEDE']-1]); 
+    var c=idx['CODIGO']?_norm(row[idx['CODIGO']-1]):'';
+    var pName=idx['PRODUCTO']?_norm(row[idx['PRODUCTO']-1]):'';
+    var idKey=_pref(c,pName);
+    if(f&&idKey) map[f+'|'+s+'|'+idKey]=r;
+  }
+
+  var items=Array.isArray(payload.items)?payload.items:[];
+  var updates=0;
+  for(var i=0;i<items.length;i++){
+    var it=items[i]||{};
+    var nombre=_norm(it.product||it.name);
+    var codigo=_norm(it.code);
+    var und=_norm(it.und);
+    var qty=_toNumber(it.quantity);
+    var idKey=_pref(codigo,nombre);
+    if(!idKey) continue;
+
+    var fsKey=(fechaKey&&sede&&idKey)?(fechaKey+'|'+sede+'|'+idKey):'';
+    var rowIndex=map[fsKey]||0;
+
+    if(!rowIndex){
+      rowIndex=sh.getLastRow()+1;
+      sh.insertRows(rowIndex,1);
+      if(idx['HORA'] && dt) sh.getRange(rowIndex,idx['HORA']).setValue(dt);
+      if(fechaIso)  sh.getRange(rowIndex,idx['FECHA']).setValue(fechaIso);
+      if(sede)      sh.getRange(rowIndex,idx['SEDE']).setValue(sede);
+      if(nombre)    sh.getRange(rowIndex,idx['PRODUCTO']).setValue(nombre);
+      if(codigo)    sh.getRange(rowIndex,idx['CODIGO']).setValue(codigo);
+      if(und)       sh.getRange(rowIndex,idx['UND']).setValue(und);
+      if(idx['MERMA']) sh.getRange(rowIndex,idx['MERMA']).setValue(qty);
+      map[fsKey]=rowIndex;
+      updates++;
+      continue;
+    }
+    if(idx['MERMA']){
+      var cell=sh.getRange(rowIndex,idx['MERMA']);
+      var cur=_toNumber(cell.getValue());
+      var next=cur+qty;
+      cell.setValue(next);
+    }
+    if(idx['HORA']&&dt){ sh.getRange(rowIndex,idx['HORA']).setValue(dt); }
+    updates++;
+  }
+  return {sheet:sheetName,count:updates,idx:idx};
+}
+
+// --- 3. UPSERT TATA (Solicitudes/Registros) ---
+function upsertOneSheet(payload,tipo,opts){
+  var ss=opts.ss;
+  var sheetName=opts.sheetName;
+  var head=opts.head||CONFIG.SHEET_DEFAULT_HEAD;
+  var sh=_getOrCreateSheet(ss,sheetName,head);
+  _reconcileHeaderAndOrder_(sh, head);
+  _dropColumnByExactHeader_(sh,'TIPO_MERMA');
+  var idx=_ensureColumnsAndIndex_(sh,head);
+
+  try{
+    if(idx['HORA']) sh.getRange(1, idx['HORA'], sh.getMaxRows()).setNumberFormat('hh:mm yyyy-mm-dd');
+    if(idx['FECHA']) sh.getRange(1, idx['FECHA'], sh.getMaxRows()).setNumberFormat('yyyy-mm-dd');
+  }catch(_){ }
+
+  var fechaRaw=payload.meta&&payload.meta.fechaTxt?String(payload.meta.fechaTxt).trim():_asDateString(payload.meta&&payload.meta.fecha);
+  var fechaIso=_asDateString(fechaRaw);
+  var fechaKey=_asDateKey_(fechaIso);
+  var sede = _toAcronym(payload.meta&&payload.meta.sede); // SIGLAS
+  
+  var resp=_cleanName(payload.meta&&payload.meta.responsable); // CLEAN
+  var sinSolicitud=!!(payload.meta&&payload.meta.sinSolicitud);
+  var hora=(payload.meta&&payload.meta.horaTxt)?String(payload.meta.horaTxt).trim():'';
+  var dt=null;
+  try{ if(hora && fechaIso){ var fkey=_asDateKey_(fechaIso); var p=fkey.split('-'); var hm=hora.split(':'); dt=new Date(Number(p[0]),Number(p[1])-1,Number(p[2]),Number(hm[0]),Number(hm[1]),0,0); } }catch(_){ dt=null; }
+
+  var values=sh.getDataRange().getValues();
+  var keyToRowFS={};
+  var blockByFS={};
+
+  for(var r=2;r<=values.length;r++){
+    var row=values[r-1];
+    var f=_asDateKey_(row[idx['FECHA']-1]);
+    var s=_toAcronym(row[idx['SEDE']-1]); // SIGLAS
+    var c=idx['CODIGO']?_norm(row[idx['CODIGO']-1]):'';
+    var pName=idx['PRODUCTO']?_norm(row[idx['PRODUCTO']-1]):'';
+    var idKey=_pref(c,pName);
+    
+    if(f&&idKey){
+        keyToRowFS[f+'|'+s+'|'+idKey]=r;
+    }
+    var placeKey=(f||'')+'|'+(s||'');
+    if(!blockByFS[placeKey]) blockByFS[placeKey]={first:r,last:r};
+    else blockByFS[placeKey].last=r;
+  }
+
+  var items=Array.isArray(payload.items)?payload.items:[];
+  var updates=[];
+  var missing=[];
+  
+  for(var i=0;i<items.length;i++){
+    var it=items[i];
+    var nombre=_norm(it&&(it.product||it.producto||it.name));
+    var codigo=_norm(it&&it.code);
+    var und=_norm(it&&it.und);
+    var qty=_toNumber((it&&it.quantity)); 
+    var idKey=_pref(codigo,nombre);
+    var fsKey=(fechaKey&&sede&&idKey)?(fechaKey+'|'+sede+'|'+idKey):'';
+    var rowIndex=fsKey?keyToRowFS[fsKey]:null;
+
+    if(tipo==='SOLICITUD'){
+      if(!rowIndex){
+         var placeKey=(fechaIso||'')+'|'+(sede||'');
+         var block=blockByFS[placeKey];
+         var insertAt=((block&&block.last)||sh.getLastRow())+1;
+         sh.insertRows(insertAt,1);
+         rowIndex=insertAt;
+         if(blockByFS[placeKey]) blockByFS[placeKey].last=rowIndex; else blockByFS[placeKey]={first:rowIndex,last:rowIndex};
+         if(idx['HORA']&&dt) sh.getRange(rowIndex,idx['HORA']).setValue(dt);
+         if(fechaIso)  sh.getRange(rowIndex,idx['FECHA']).setValue(fechaIso);
+         if(sede)      sh.getRange(rowIndex,idx['SEDE']).setValue(sede);
+         if(nombre)    sh.getRange(rowIndex,idx['PRODUCTO']).setValue(nombre);
+         if(codigo)    sh.getRange(rowIndex,idx['CODIGO']).setValue(codigo);
+         if(und)       sh.getRange(rowIndex,idx['UND']).setValue(und);
+         if(fsKey) keyToRowFS[fsKey]=rowIndex;
+      }
+      sh.getRange(rowIndex,idx['CANTIDAD SOLICITADA']).setValue(qty);
+      if(idx['RESPONSABLE SOLICITUD']) sh.getRange(rowIndex,idx['RESPONSABLE SOLICITUD']).setValue(resp);
+      updates.push({row:rowIndex,tipo:tipo,qty:qty});
+      continue;
+    }
+
+    if(rowIndex){
+      if(idx['CANTIDAD ENTREGADA'])  sh.getRange(rowIndex,idx['CANTIDAD ENTREGADA']).setValue(qty);
+      if(idx['RESPONSABLE ENTREGA']) sh.getRange(rowIndex,idx['RESPONSABLE ENTREGA']).setValue(resp);
+      if(idx['HORA']&&dt) sh.getRange(rowIndex,idx['HORA']).setValue(dt); 
+      updates.push({row:rowIndex,tipo:tipo,qty:qty});
+      continue;
+    }
+
+    if(sinSolicitud && CONFIG.ALWAYS_CREATE_WHEN_SIN_SOLICITUD){
+      var placeKeyE=(fechaIso||'')+'|'+(sede||'');
+      var blockE=blockByFS[placeKeyE];
+      var insertAtE=((blockE&&blockE.last)||sh.getLastRow())+1;
+      sh.insertRows(insertAtE,1);
+      rowIndex=insertAtE;
+      if(blockByFS[placeKeyE]) blockByFS[placeKeyE].last=rowIndex; else blockByFS[placeKeyE]={first:rowIndex,last:rowIndex};
+      if(idx['HORA']&&dt) sh.getRange(rowIndex,idx['HORA']).setValue(dt);
+      if(fechaIso) sh.getRange(rowIndex,idx['FECHA']).setValue(fechaIso);
+      if(sede)     sh.getRange(rowIndex,idx['SEDE']).setValue(sede);
+      if(nombre)   sh.getRange(rowIndex,idx['PRODUCTO']).setValue(nombre);
+      if(codigo)   sh.getRange(rowIndex,idx['CODIGO']).setValue(codigo);
+      if(und)      sh.getRange(rowIndex,idx['UND']).setValue(und);
+      if(idx['CANTIDAD ENTREGADA'])  sh.getRange(rowIndex,idx['CANTIDAD ENTREGADA']).setValue(qty);
+      if(idx['RESPONSABLE ENTREGA']) sh.getRange(rowIndex,idx['RESPONSABLE ENTREGA']).setValue(resp);
+      updates.push({row:rowIndex,tipo:tipo,qty:qty});
+      continue;
+    }
+    missing.push({key:fsKey,producto:nombre,codigo:codigo,qty:qty});
+  }
+  return {sheet:sheetName,count:updates.length,missing:missing,idx:idx};
+}
+
+// --- UTILIDADES ---
+function _json(obj,status){ return ContentService.createTextOutput(JSON.stringify(obj)).setMimeType(ContentService.MimeType.JSON); }
+function _resolveSpreadsheet(ssid,ssurl){ try{ if(ssid) return SpreadsheetApp.openById(ssid); if(ssurl){ var m=String(ssurl).match(/\/d\/([^/]+)/); if(m&&m[1]) return SpreadsheetApp.openById(m[1]); } }catch(e){} return SpreadsheetApp.openById(CONFIG.SPREADSHEET_ID); }
+function _getOrCreateSheet(ss,name,header){ var sheetName = String(name||'').trim() || CONFIG.SHEET || 'Sheet1'; var sh=ss.getSheetByName(sheetName); if(!sh) sh=ss.insertSheet(sheetName); if(sh.getLastRow()<=0){ sh.getRange(1,1,1,header.length).setValues([header]); sh.setFrozenRows(1); } return sh; }
+function _reconcileHeaderAndOrder_(sh, requiredHead){ try{ var lc=sh.getLastColumn(); if(lc<=0) return; try{ var filter=sh.getFilter&&sh.getFilter(); if(filter) filter.remove(); }catch(_){ } var cur=sh.getRange(1,1,1,lc).getValues()[0]; for(var c=0;c<cur.length;c++){ if(String(cur[c]).trim().toUpperCase()==='PRODUCTOS'){ cur[c]='PRODUCTO'; sh.getRange(1,c+1).setValue('PRODUCTO'); } } for(var i=0;i<requiredHead.length;i++){ var name=requiredHead[i]; var idx=-1; for(var j=0;j<cur.length;j++){ if(String(cur[j]).trim()===name){ idx=j; break; } } if(idx===-1){ sh.insertColumnBefore(i+1); sh.getRange(1,i+1).setValue(name); cur.splice(i,0,name); } } for(var i2=0;i2<requiredHead.length;i2++){ var want=requiredHead[i2]; var curIdx=-1; for(var j2=0;j2<cur.length;j2++){ if(String(cur[j2]).trim()===want){ curIdx=j2; break; } } var dest=i2; if(curIdx!==-1 && curIdx!==dest){ sh.moveColumns(sh.getRange(1,curIdx+1,sh.getMaxRows(),1), dest+1); var moved=cur.splice(curIdx,1)[0]; cur.splice(dest,0,moved); } } sh.getRange(1,1,1,requiredHead.length).setValues([requiredHead]); }catch(e){} }
+function fixSheetToHead_(ss, sheetName, requiredHead){ var sh=ss.getSheetByName(sheetName); if(!sh) throw new Error('sheet not found'); var data=sh.getDataRange().getValues(); if(data.length===0){ sh.getRange(1,1,1,requiredHead.length).setValues([requiredHead]); return {sheet:sheetName,rows:0,head:requiredHead}; } var curHead=data[0]; var map={}; for(var i=0;i<curHead.length;i++){ var n=(String(curHead[i]).toUpperCase()==='PRODUCTOS')?'PRODUCTO':String(curHead[i]).trim(); if(map[n]==null) map[n]=i; } var outRows=[]; for(var r=1;r<data.length;r++){ var row=data[r]; var out=new Array(requiredHead.length).fill(''); for(var c=0;c<requiredHead.length;c++){ var idx=map[requiredHead[c]]; if(idx!=null && idx>=0 && idx<row.length) out[c]=row[idx]; } outRows.push(out); } var tmpName=sheetName+'__FIX_TMP'; var tmp=ss.getSheetByName(tmpName); if(tmp) ss.deleteSheet(tmp); tmp=ss.insertSheet(tmpName); tmp.getRange(1,1,1,requiredHead.length).setValues([requiredHead]); tmp.setFrozenRows(1); if(outRows.length) tmp.getRange(2,1,outRows.length,requiredHead.length).setValues(outRows); var oldName=sheetName+'__OLD_'+(new Date().getTime()); ss.setActiveSheet(sh); sh.setName(oldName); tmp.setName(sheetName); return {sheet:sheetName,rows:outRows.length,head:requiredHead}; }
+function _dropColumnByExactHeader_(sh,name){ try{ var h=sh.getRange(1,1,1,sh.getLastColumn()).getValues()[0]; for(var i=h.length-1;i>=0;i--){ if(String(h[i]).trim()===name) sh.deleteColumn(i+1); } }catch(e){} }
+function _ensureColumnsAndIndex_(sh,requiredHead){ var lastCol=sh.getLastColumn(); var head=lastCol>0?sh.getRange(1,1,1,lastCol).getValues()[0]:[]; var map={}; for(var i=0;i<head.length;i++) map[head[i]]=i+1; var ch=false; for(var j=0;j<requiredHead.length;j++){ if(!map[requiredHead[j]]){ head.push(requiredHead[j]); map[requiredHead[j]]=head.length; ch=true; } } if(ch){ sh.getRange(1,1,1,head.length).setValues([head]); sh.setFrozenRows(1); } var idx={}; for(var k=0;k<head.length;k++) idx[head[k]]=k+1; return idx; }
+function _norm(v){ return String(v==null?'':v).trim().toUpperCase(); }
+function _pref(a,b){ return a?a:b; }
+function _toNumber(v){ try{ if(v==null)return 0; var s=String(v).trim().replace(/,/g,'.'); if(!s)return 0; var n=Number(s); return Number.isFinite(n)?n:0; }catch(_){return 0;} }
+function _asDateString(x){ if(!x)return ''; if(Object.prototype.toString.call(x)==='[object Date]') return x.getFullYear()+'-'+String(x.getMonth()+1).padStart(2,'0')+'-'+String(x.getDate()).padStart(2,'0'); var s=String(x).trim(); if(/^\d{4}-\d{2}-\d{2}$/.test(s)) return s; var d=new Date(s); return !isNaN(d)?d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0')+'-'+String(d.getDate()).padStart(2,'0'):s; }
+function _asDateKey_(s){ var str=String(s).trim(); if(/^\d{4}-\d{2}-\d{2}$/.test(str)) return str; var m=str.match(/^(\d{2})-(\d{2})-(\d{4})$/); return m?m[3]+'-'+m[2]+'-'+m[1]:str; }
