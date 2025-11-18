@@ -243,7 +243,7 @@ const SUBMIT_COOLDOWN_MS = 4_000;  // mantener botón deshabilitado X segundos t
 const ENABLE_LOCAL_SAVE = false;
 const STORAGE_KEY = "productos_registrados";
 const SETTINGS_KEY = "gs_settings"; // { url: string, enabled: boolean, token?: string }
-const DEFAULT_GS_URL = "https://script.google.com/macros/s/AKfycbxiYGVKbaQNfd0HdSqtTnmd6YVYnhUZL9SWYLcL-C14BS4taL1KcQw70KdUe2uKY8a4QQ/exec";
+const DEFAULT_GS_URL = "https://script.google.com/macros/s/AKfycbyI0mKmEj2T3Llup_Nb9EslXEiwMcQ1HBeDc4b7XsJpSW8S3Spc2Oqe4yOmpF14gmzMoQ/exec";
 const DEFAULT_GS_TOKEN = "Pasantias90";
 const ROLE_KEY = "app_role"; // 'worker' | 'admin'
 
@@ -1297,8 +1297,27 @@ function main() {
       let msg = ENABLE_LOCAL_SAVE
         ? `Guardado ${new Date(entry.at).toLocaleString()} (${entry.items.length} item/s)`
         : `Listo (${entry.items.length} item/s)`;
-  const send = await maybeSendToSheets(entry);
+      // Intento de envío al backend (proxy o directo según settings)
+      console.debug('[submit] intentando enviar entry', { formId: meta?.formId, tipo: meta?.tipo });
+      const send = await maybeSendToSheets(entry);
       sendResult = send;
+      // If nothing was actually sent and this is the MERMA form, attempt a direct POST to the WebApp URL
+      if ((!sendResult || !sendResult.sent) && cfg && cfg.id === 'merma') {
+        try{
+          console.debug('[submit] primer intento no envió; reintentando POST directo al WebApp para MERMA');
+          const directRes = await fetch((JSON.parse(localStorage.getItem(SETTINGS_KEY) || '{}').url) || DEFAULT_GS_URL, {
+            method: 'POST', headers: { 'Content-Type': 'text/plain;charset=utf-8' }, body: JSON.stringify(entry), mode: 'cors'
+          });
+          const text = await directRes.text().catch(()=>'');
+          let parsed = null;
+          try{ parsed = JSON.parse(text); }catch(_){ parsed = null; }
+          sendResult = { sent: directRes.ok, data: parsed || { raw: text }, error: directRes.ok ? undefined : `HTTP ${directRes.status}` };
+          console.debug('[submit] POST directo resultado', sendResult);
+        }catch(err){
+          sendResult = { sent: false, error: String(err) };
+          console.error('[submit] error en POST directo MERMA', err);
+        }
+      }
       const backendOk = !(send && send.data && send.data.ok === false);
       if (send.sent && backendOk) {
         // Si el backend respondió con count=0 en ENTREGADO normal (sin sinSolicitud), intentar fallback automático una vez

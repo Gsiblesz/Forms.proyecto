@@ -215,7 +215,7 @@ function appendInventario(payload,opts){
     var codigo=String(it.code||'').trim();
     var und=String(it.und||'').trim();
     var prod=String(it.product||it.name||'').trim();
-    var qty=Number(it.quantity||0);
+  var qty=_toInt(it.quantity);
 
     var vals=new Array(head.length).fill('');
   if(idx['entry_id'])  vals[idx['entry_id']-1]=entryId;
@@ -285,7 +285,8 @@ function upsertMerma(payload,opts){
   // Normalizar la fecha del payload a clave YYYY-MM-DD para emparejado consistente
   var fechaIso=_asDateString(fechaRaw);
   var fechaKey=_asDateKey_(fechaIso);
-  var sede=_canonSede(payload.meta&&payload.meta.sede)||'BELLO CAMPO';
+  // MERMA aplica solo para BELLO CAMPO (BC)
+  var sede = 'BELLO CAMPO';
   // Hora solo si viene del cliente (HOY). Si no, sin hora.
   var hora=(payload.meta&&payload.meta.horaTxt)?String(payload.meta.horaTxt).trim():'';
   var horaFecha = hora ? (hora + (fechaIso?(' '+fechaIso):'')) : '';
@@ -314,14 +315,14 @@ function upsertMerma(payload,opts){
     if(f&&s&&idKey) map[f+'|'+s+'|'+idKey]=r;
   }
 
-  var items=Array.isArray(payload.items)?payload.items:[];
+    var items=Array.isArray(payload.items)?payload.items:[];
   var updates=0;
   for(var i=0;i<items.length;i++){
     var it=items[i]||{};
     var nombre=_norm(it.product||it.name);
     var codigo=_norm(it.code);
     var und=_norm(it.und);
-    var qty=Number(it.quantity||0);
+  var qty=_toInt(it.quantity);
     var idKey=_pref(codigo,nombre);
     if(!idKey) continue;
 
@@ -341,7 +342,7 @@ function upsertMerma(payload,opts){
       if(idx['RESPONSABLE SOLICITUD']) sh.getRange(rowIndex,idx['RESPONSABLE SOLICITUD']).setValue('');
       if(idx['CANTIDAD ENTREGADA'])    sh.getRange(rowIndex,idx['CANTIDAD ENTREGADA']).setValue('');
       if(idx['RESPONSABLE ENTREGA'])   sh.getRange(rowIndex,idx['RESPONSABLE ENTREGA']).setValue('');
-      if(idx['MERMA'])                  sh.getRange(rowIndex,idx['MERMA']).setValue(qty);
+  if(idx['MERMA'])                  sh.getRange(rowIndex,idx['MERMA']).setValue(_toInt(qty));
       map[fsKey]=rowIndex;
       updates++;
       continue;
@@ -349,8 +350,8 @@ function upsertMerma(payload,opts){
 
     if(idx['MERMA']){
       var cell=sh.getRange(rowIndex,idx['MERMA']);
-      var cur=Number(cell.getValue()||0);
-      var next=(Number.isFinite(cur)?cur:0)+qty;
+      var cur=_toInt(cell.getValue());
+      var next=cur+qty;
       cell.setValue(next);
     }
   if(idx['HORA']&&dt){ sh.getRange(rowIndex,idx['HORA']).setValue(dt); }
@@ -430,7 +431,7 @@ function upsertOneSheet(payload,tipo,opts){
   // Registro resumen para depuración: número de entradas indexadas
   try{ Logger.log('upsertOneSheet: keyToRowFS entries=%d, sheet=%s', Object.keys(keyToRowFS).length, sheetName); }catch(_){/* ignore */}
 
-  var items=Array.isArray(payload.items)?payload.items:[];
+    var items=Array.isArray(payload.items)?payload.items:[];
   var updates=[];
   var missing=[];
   for(var i=0;i<items.length;i++){
@@ -438,7 +439,7 @@ function upsertOneSheet(payload,tipo,opts){
     var nombre=_norm(it&&(it.product||it.producto||it.name));
     var codigo=_norm(it&&it.code);
     var und=_norm(it&&it.und);
-    var qty=Number((it&&it.quantity)||0);
+  var qty=_toInt((it&&it.quantity));
     var idKey=_pref(codigo,nombre);
   var fsKey=(fechaKey&&sede&&idKey)?(fechaKey+'|'+sede+'|'+idKey):'';
     var rowIndex=fsKey?keyToRowFS[fsKey]:null;
@@ -665,6 +666,38 @@ function _ensureColumnsAndIndex_(sh,requiredHead){
 
 function _norm(v){ return String(v==null?'':v).trim().toUpperCase(); }
 function _pref(a,b){ return a?a:b; }
+// Convierte valores a número robustamente: maneja strings con coma decimal, nulos y NaN
+function _toNumber(v){
+  try{
+    if(v==null) return 0;
+    var s=String(v).trim();
+    if(s==='') return 0;
+    // Reemplaza coma decimal por punto (p. ej. "2,5" -> "2.5")
+    s = s.replace(/,/g, '.');
+    var n = Number(s);
+    if(Number.isFinite(n)) return n;
+    // último intento: parseFloat
+    n = parseFloat(s);
+    return Number.isFinite(n)?n:0;
+  }catch(_){ return 0; }
+}
+// Convierte a entero (estricto): acepta sólo enteros; si recibe number se trunca.
+// No acepta comas ni decimales en strings — entradas no enteras devuelven 0.
+function _toInt(v){
+  try{
+    if(v==null) return 0;
+    if(typeof v==='number'){
+      if(!Number.isFinite(v)) return 0;
+      return Math.trunc(v);
+    }
+    var s=String(v).trim();
+    if(s==='') return 0;
+    // aceptar opcionalmente signo y sólo dígitos
+    var m=s.match(/^[-+]?\d+$/);
+    if(m) return parseInt(s,10);
+    return 0;
+  }catch(_){ return 0; }
+}
 function _asDateString(x){
   if(!x) return '';
   if(Object.prototype.toString.call(x)==='[object Date]'){
