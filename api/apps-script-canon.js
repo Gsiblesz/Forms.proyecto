@@ -2,9 +2,10 @@
 
 const CONFIG = {
   TOKEN: 'Pasantias90',
-  SPREADSHEET_ID: '1MQlP9wx199xW-gIYwf4FcjdANG9TLEkSjORiNmxJH5s',
+  SPREADSHEET_ID: '1TlsAVq8pauOxwHHCWGL8I740pGZ5ftpYC3gwvEPo1eE',
   // Default sheet name to use when no target or meta.sheet is provided
-  SHEET: 'SOLICITUDES',
+  // La pestaña que antes era SOLICITUDES ahora se formaliza como AJUSTES
+  SHEET: 'AJUSTES',
   // Agregamos columna HORA (antes de FECHA); HORA contendrá "HH:mm dd-mm-aaaa" y FECHA solo "dd-mm-aaaa"
   HEAD: ['HORA','FECHA','SEDE','FAMILIA','PRODUCTO','CODIGO','UND','CANTIDAD SOLICITADA','RESPONSABLE SOLICITUD','CANTIDAD ENTREGADA','RESPONSABLE ENTREGA'],
   DELIVERY_MATCH_SCOPE: 'FECHA_SEDE_PRODUCTO',
@@ -13,7 +14,8 @@ const CONFIG = {
   ALWAYS_CREATE_WHEN_SIN_SOLICITUD: true,
   TARGETS: {
     'inventario-pt': {
-      ssurl: 'https://docs.google.com/spreadsheets/d/1TlsAVq8pauOxwHHCWGL8I740pGZ5ftpYC3gwvEPo1eE/edit?gid=1406805867',
+      // Libro de INVENTARIO DE PRODUCTO TERMINADO (donde estará la pestaña AJUSTES)
+      ssurl: 'https://docs.google.com/spreadsheets/d/1TlsAVq8pauOxwHHCWGL8I740pGZ5ftpYC3gwvEPo1eE/edit',
       sheet: 'INVENTARIO DE PRODUCTO TERMINADO',
       // Mantener primeros 5 como están y reordenar bloque de producto
       // entry_id, FECHA (con hora incluida), TIPO, SEDE, EMPRESA, CODIGO, PRODUCTO, UND, CANTIDAD, RESPONSABLE
@@ -24,7 +26,8 @@ const CONFIG = {
     ,
     // Target explícito para el formulario LA TATA de la libertad
     'tata-libertad': {
-      ssurl: 'https://docs.google.com/spreadsheets/d/1MQlP9wx199xW-gIYwf4FcjdANG9TLEkSjORiNmxJH5s/edit?gid=214936742',
+      // Libro "LA TATA DE LA LIBERTAD" (formulario específico)
+      ssurl: 'https://docs.google.com/spreadsheets/d/1MQlP9wx199xW-gIYwf4FcjdANG9TLEkSjORiNmxJH5s/edit?gid=1387627441',
       sheet: 'LA TATA DE LA LIBERTAD',
       HEAD: ['HORA','FECHA','SEDE','FAMILIA','PRODUCTO','CODIGO','UND','CANTIDAD SOLICITADA','RESPONSABLE SOLICITUD','CANTIDAD ENTREGADA','RESPONSABLE ENTREGA']
     }
@@ -183,15 +186,27 @@ function appendInventario(payload,opts){
       ss.setSpreadsheetTimeZone('America/Caracas');
     }
   }catch(_){ }
-  try{
-    // Apply number formats only to data rows (skip header row) to avoid errors
-    var maxRows = sh.getMaxRows();
-    var dataRows = Math.max(0, maxRows - 1); // exclude header
-    if(dataRows > 0){
-      if(idx['HORA']) sh.getRange(2, idx['HORA'], dataRows, 1).setNumberFormat('hh:mm yyyy-mm-dd');
-      if(idx['FECHA']) sh.getRange(2, idx['FECHA'], dataRows, 1).setNumberFormat('yyyy-mm-dd');
+  // Apply number formats only to data rows (skip header row) to avoid errors
+  // Do per-column try/catch and surface which column fails so the WebApp response
+  // includes an indicator (column name and index) when formatting fails.
+  var maxRows = sh.getMaxRows();
+  var dataRows = Math.max(0, maxRows - 1); // exclude header
+  if(dataRows > 0){
+    if(idx['HORA']){
+      try{
+        sh.getRange(2, idx['HORA'], dataRows, 1).setNumberFormat('hh:mm yyyy-mm-dd');
+      }catch(e){
+        throw new Error('No puedes configurar el formato de número en la columna "HORA" (col '+idx['HORA']+'): '+String(e));
+      }
     }
-  }catch(_){ }
+    if(idx['FECHA']){
+      try{
+        sh.getRange(2, idx['FECHA'], dataRows, 1).setNumberFormat('yyyy-mm-dd');
+      }catch(e){
+        throw new Error('No puedes configurar el formato de número en la columna "FECHA" (col '+idx['FECHA']+'): '+String(e));
+      }
+    }
+  }
 
   var entryId=String(payload.id||('e-'+Math.random().toString(36).slice(2,8))).toUpperCase();
   var fechaRaw=payload.meta&&payload.meta.fechaTxt?String(payload.meta.fechaTxt).trim():_asDateString(payload.meta&&payload.meta.fecha);
