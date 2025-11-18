@@ -94,7 +94,7 @@ const SUBMIT_COOLDOWN_MS = 4_000;  // mantener botón deshabilitado X segundos t
 const ENABLE_LOCAL_SAVE = false;
 const STORAGE_KEY = "productos_registrados";
 const SETTINGS_KEY = "gs_settings"; // { url: string, enabled: boolean, token?: string }
-const DEFAULT_GS_URL = "https://script.google.com/macros/s/AKfycbwj9nabV7zgKi8Hz3gMMdTDP7MVh3NwpG_LlbsELEINidKyj6ehr8Rwit6Cs2V2TRBqpg/exec";
+const DEFAULT_GS_URL = "https://script.google.com/macros/s/AKfycbwlt01PbSVLA0uoOpp8pr5U84odcfISYUWQoRi_f-bibtYN140cEEnPiciFLBtRah1HEw/exec";
 const DEFAULT_GS_TOKEN = "Pasantias90";
 const ROLE_KEY = "app_role"; // 'worker' | 'admin'
 
@@ -595,16 +595,43 @@ function main() {
         }
         PRODUCT_CATALOG = flat;
       }
-      // Ocultar metadata (sede, responsable, fecha) y extras
+      // Mostrar metadata pero forzar SEDE a 'BC' y bloquear selección; ocultar RESPONSABLE
       const metaBox = document.querySelector('.meta');
-      if (metaBox) metaBox.style.display = 'none';
+      if (metaBox) metaBox.style.display = '';
       const extra = document.getElementById('form-extra');
       if (extra) {
-        extra.innerHTML = '<small class="muted">MERMA aplica solo para la sede <strong>BC</strong> (BELLO CAMPO).</small>';
+        extra.innerHTML = '<small class="muted">MERMA: la sede se fija automáticamente a <strong>BC</strong> (BELLO CAMPO).</small>';
       }
-      // Forzar sede fija a BELLO CAMPO
+      // Forzar sede fija a BELLO CAMPO y deshabilitar el control para evitar cambios del usuario
       const sedeInputFixed = document.getElementById('meta-sede');
-  if (sedeInputFixed) sedeInputFixed.value = 'BC';
+      const sedeWrap = sedeInputFixed ? sedeInputFixed.closest('div') : null;
+      try {
+        if (sedeWrap) sedeWrap.style.display = '';
+        if (sedeInputFixed) {
+          sedeInputFixed.value = 'BC';
+          sedeInputFixed.disabled = true;
+          sedeInputFixed.setAttribute('aria-disabled','true');
+          // add small lock indicator next to the select if not present
+          if (!document.getElementById('meta-sede-lock')){
+            const lock = document.createElement('span');
+            lock.id = 'meta-sede-lock';
+            lock.title = 'Sede fijada a BELLO CAMPO (BC)';
+            lock.textContent = ' 🔒';
+            lock.style.marginLeft = '6px';
+            lock.style.fontSize = '0.95em';
+            if (sedeWrap) {
+              // append after the select element
+              sedeInputFixed.parentNode.appendChild(lock);
+            } else {
+              document.body.appendChild(lock);
+            }
+          }
+        }
+      } catch(e){}
+      // ocultar responsable
+      const respInput = document.getElementById('meta-resp');
+      const respWrap = respInput ? respInput.closest('div') : null;
+      if (respWrap) respWrap.style.display = 'none';
     }
   }
   // Personalización por formulario: INVENTARIO PRODUCTO TERMINADO (alias: registros)

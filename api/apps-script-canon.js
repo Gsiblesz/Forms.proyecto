@@ -184,8 +184,13 @@ function appendInventario(payload,opts){
     }
   }catch(_){ }
   try{
-    if(idx['HORA']) sh.getRange(1, idx['HORA'], sh.getMaxRows()).setNumberFormat('hh:mm yyyy-mm-dd');
-    if(idx['FECHA']) sh.getRange(1, idx['FECHA'], sh.getMaxRows()).setNumberFormat('yyyy-mm-dd');
+    // Apply number formats only to data rows (skip header row) to avoid errors
+    var maxRows = sh.getMaxRows();
+    var dataRows = Math.max(0, maxRows - 1); // exclude header
+    if(dataRows > 0){
+      if(idx['HORA']) sh.getRange(2, idx['HORA'], dataRows, 1).setNumberFormat('hh:mm yyyy-mm-dd');
+      if(idx['FECHA']) sh.getRange(2, idx['FECHA'], dataRows, 1).setNumberFormat('yyyy-mm-dd');
+    }
   }catch(_){ }
 
   var entryId=String(payload.id||('e-'+Math.random().toString(36).slice(2,8))).toUpperCase();
@@ -271,10 +276,14 @@ function upsertMerma(payload,opts){
     }
   }catch(_){ }
   try{
-    if(idx['HORA']) sh.getRange(1, idx['HORA'], sh.getMaxRows()).setNumberFormat('hh:mm yyyy-mm-dd');
-    if(idx['FECHA']) sh.getRange(1, idx['FECHA'], sh.getMaxRows()).setNumberFormat('yyyy-mm-dd');
+    var maxRows2 = sh.getMaxRows();
+    var dataRows2 = Math.max(0, maxRows2 - 1);
+    if(dataRows2 > 0){
+      if(idx['HORA']) sh.getRange(2, idx['HORA'], dataRows2, 1).setNumberFormat('hh:mm yyyy-mm-dd');
+      if(idx['FECHA']) sh.getRange(2, idx['FECHA'], dataRows2, 1).setNumberFormat('yyyy-mm-dd');
+    }
   }catch(_){ }
-
+  
   // Asegurar zona horaria y formatos: HORA mostrará hora+fecha, FECHA mostrará dd-mm-aaaa
   try{
     if(ss && ss.getSpreadsheetTimeZone && ss.getSpreadsheetTimeZone() !== 'America/Caracas'){
@@ -282,8 +291,12 @@ function upsertMerma(payload,opts){
     }
   }catch(_){ }
   try{
-    if(idx['HORA']) sh.getRange(1, idx['HORA'], sh.getMaxRows()).setNumberFormat('hh:mm dd-mm-yyyy');
-    if(idx['FECHA']) sh.getRange(1, idx['FECHA'], sh.getMaxRows()).setNumberFormat('dd-mm-yyyy');
+    var maxRows3 = sh.getMaxRows();
+    var dataRows3 = Math.max(0, maxRows3 - 1);
+    if(dataRows3 > 0){
+      if(idx['HORA']) sh.getRange(2, idx['HORA'], dataRows3, 1).setNumberFormat('hh:mm dd-mm-yyyy');
+      if(idx['FECHA']) sh.getRange(2, idx['FECHA'], dataRows3, 1).setNumberFormat('dd-mm-yyyy');
+    }
   }catch(_){ }
 
   var fechaRaw=payload.meta&&payload.meta.fechaTxt?String(payload.meta.fechaTxt).trim():_asDateString(payload.meta&&payload.meta.fecha);
@@ -310,14 +323,20 @@ function upsertMerma(payload,opts){
 
   var values=sh.getDataRange().getValues();
   var map={};
+  // Build tolerant lookup map with multiple key variants to improve matching
   for(var r=2;r<=values.length;r++){
     var row=values[r-1];
-  var f=_asDateKey_(row[idx['FECHA']-1]);
+    var f=_asDateKey_(row[idx['FECHA']-1]);
     var s=_canonSede(row[idx['SEDE']-1]);
     var c=idx['CODIGO']?_norm(row[idx['CODIGO']-1]):'';
     var p=idx['PRODUCTO']?_norm(row[idx['PRODUCTO']-1]):'';
-    var idKey=_pref(c,p);
-    if(f&&s&&idKey) map[f+'|'+s+'|'+idKey]=r;
+    var gen=_pref(c,p);
+    if(!f||!s) continue;
+    // primary normalized key
+    if(gen) map[f+'|'+s+'|GEN|'+gen]=r;
+    // explicit code and product keys (if present)
+    if(c) map[f+'|'+s+'|CODE|'+c]=r;
+    if(p) map[f+'|'+s+'|PROD|'+p]=r;
   }
 
     var items=Array.isArray(payload.items)?payload.items:[];
@@ -404,8 +423,12 @@ function upsertOneSheet(payload,tipo,opts){
   }catch(_){ dt=null; }
   // Asegurar formatos de columnas HORA/FECHA
   try{
-    if(idx['HORA']) sh.getRange(1, idx['HORA'], sh.getMaxRows()).setNumberFormat('hh:mm yyyy-mm-dd');
-    if(idx['FECHA']) sh.getRange(1, idx['FECHA'], sh.getMaxRows()).setNumberFormat('yyyy-mm-dd');
+    var maxRows4 = sh.getMaxRows();
+    var dataRows4 = Math.max(0, maxRows4 - 1);
+    if(dataRows4 > 0){
+      if(idx['HORA']) sh.getRange(2, idx['HORA'], dataRows4, 1).setNumberFormat('hh:mm yyyy-mm-dd');
+      if(idx['FECHA']) sh.getRange(2, idx['FECHA'], dataRows4, 1).setNumberFormat('yyyy-mm-dd');
+    }
   }catch(_){ }
   // Ensure SEDE is always 'BC' for MERMA
   if (tipo === 'MERMA') {
@@ -449,8 +472,17 @@ function upsertOneSheet(payload,tipo,opts){
     var und=_norm(it&&it.und);
   var qty=_toInt((it&&it.quantity));
     var idKey=_pref(codigo,nombre);
-  var fsKey=(fechaKey&&sede&&idKey)?(fechaKey+'|'+sede+'|'+idKey):'';
-    var rowIndex=fsKey?keyToRowFS[fsKey]:null;
+    // Try multiple key variants for matching: prefer CODE, then PROD, then GEN
+    var rowIndex=null;
+    if(fechaKey && sede){
+      var candCode = codigo? (fechaKey+'|'+sede+'|CODE|'+codigo) : null;
+      var candProd = nombre? (fechaKey+'|'+sede+'|PROD|'+nombre) : null;
+      var candGen = idKey? (fechaKey+'|'+sede+'|GEN|'+idKey) : null;
+      if(candCode && keyToRowFS[candCode]) rowIndex=keyToRowFS[candCode];
+      else if(candProd && keyToRowFS[candProd]) rowIndex=keyToRowFS[candProd];
+      else if(candGen && keyToRowFS[candGen]) rowIndex=keyToRowFS[candGen];
+      else rowIndex=null;
+    }
 
     if(tipo==='SOLICITUD'){
       if(!rowIndex){

@@ -243,7 +243,7 @@ const SUBMIT_COOLDOWN_MS = 4_000;  // mantener botón deshabilitado X segundos t
 const ENABLE_LOCAL_SAVE = false;
 const STORAGE_KEY = "productos_registrados";
 const SETTINGS_KEY = "gs_settings"; // { url: string, enabled: boolean, token?: string }
-const DEFAULT_GS_URL = "https://script.google.com/macros/s/AKfycbwj9nabV7zgKi8Hz3gMMdTDP7MVh3NwpG_LlbsELEINidKyj6ehr8Rwit6Cs2V2TRBqpg/exec";
+const DEFAULT_GS_URL = "https://script.google.com/macros/s/AKfycbwlt01PbSVLA0uoOpp8pr5U84odcfISYUWQoRi_f-bibtYN140cEEnPiciFLBtRah1HEw/exec";
 const DEFAULT_GS_TOKEN = "Pasantias90";
 const ROLE_KEY = "app_role"; // 'worker' | 'admin'
 
@@ -865,10 +865,20 @@ function main() {
         }
         PRODUCT_CATALOG = flat;
       }
-      // Mantener visible la FECHA, ocultar SEDE y RESPONSABLE
+      // Mantener visible la FECHA; hacer SEDE visible pero bloqueada a 'BC' y ocultar RESPONSABLE
       const sedeInputFixed = document.getElementById('meta-sede');
       const sedeWrap = sedeInputFixed ? sedeInputFixed.closest('div') : null;
-      if (sedeWrap) sedeWrap.style.display = 'none';
+      // Mostrar el control de sede para que el navegador pueda enfocarlo en validaciones,
+      // pero bloquear su selección y dejar el valor por defecto 'BC'. Esto evita problemas
+      // de validación cuando el control está oculto o vacío.
+      try {
+        if (sedeWrap) { sedeWrap.style.display = ''; }
+        if (sedeInputFixed) {
+          sedeInputFixed.value = 'BC';
+          sedeInputFixed.disabled = true; // impedir cambios del usuario
+          sedeInputFixed.setAttribute('aria-disabled','true');
+        }
+      } catch(e){}
       const respInput = document.getElementById('meta-resp');
       const respWrap = respInput ? respInput.closest('div') : null;
       if (respWrap) respWrap.style.display = 'none';
@@ -878,7 +888,10 @@ function main() {
         extra.innerHTML = '<small class="muted">MERMA: la sede se fija automáticamente a <strong>BC</strong> (BELLO CAMPO). Indica fecha, producto y cantidad.</small>';
       }
       // Forzar sede fija a BELLO CAMPO
-  if (sedeInputFixed) sedeInputFixed.value = 'BC';
+  // Ensure merma form leaves SEDE fixed to BC (already applied above) — keep defensive assignment
+  if (sedeInputFixed) {
+    try { sedeInputFixed.value = 'BC'; sedeInputFixed.disabled = true; } catch(_){}
+  }
     
     }
   }
