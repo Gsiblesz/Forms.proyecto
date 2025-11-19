@@ -7,7 +7,7 @@ Usage:
     ./tools/test_post.ps1 -Url "https://script.google.com/macros/s/XXXXX/exec"
 #>
 param(
-  [string]$Url = "https://script.google.com/macros/s/AKfycbzqI10HExaNc6XPhPFWgJT6Z1MGosym8xTHTDDhgP4-BuJsJ6k2b5bl7O2QFNnuCHXJRA/exec",
+  [string]$Url = "https://script.google.com/macros/s/AKfycbyQdaHIgRenUNYIMC2DPyaA38ri_p-obA84g33d4X83751dnhqO4cBFpHUrqed06avceA/exec",
   [string]$Token = 'Pasantias90'
 )
 
