@@ -387,10 +387,9 @@ function upsertMerma(payload,opts){
   var qty=_toInt(it.quantity);
   var idKey=_pref(codigo,nombre);
   // fsKey: fecha|sede|idKey used for indexing/creating new rows when needed
-  var fsKey = (fechaIso && sede && idKey) ? (fechaIso+'|'+sede+'|'+idKey) : '';
     if(!idKey) continue;
-
-  var fsKey=(fechaKey&&sede&&idKey)?(fechaKey+'|'+sede+'|'+idKey):'';
+  // normalize single fsKey expression (use fechaKey for consistent YYYY-MM-DD keys)
+  var fsKey = (fechaKey && sede && idKey) ? (fechaKey+'|'+sede+'|'+idKey) : '';
     var rowIndex=map[fsKey]||0;
 
     if(!rowIndex){
@@ -512,6 +511,8 @@ function upsertOneSheet(payload,tipo,opts){
     var und=_norm(it&&it.und);
   var qty=_toInt((it&&it.quantity));
     var idKey=_pref(codigo,nombre);
+  // fsKey used for indexing/creating new rows when needed (fechaKey|sede|idKey)
+  var fsKey = (fechaKey && sede && idKey) ? (fechaKey+'|'+sede+'|'+idKey) : '';
     // Try multiple key variants for matching: prefer CODE, then PROD, then GEN
     var rowIndex=null;
     if(fechaKey && sede){
@@ -538,7 +539,7 @@ function upsertOneSheet(payload,tipo,opts){
         if(nombre) sh.getRange(rowIndex,idx['PRODUCTO']).setValue(nombre);
         if(codigo) sh.getRange(rowIndex,idx['CODIGO']).setValue(codigo);
         if(und)    sh.getRange(rowIndex,idx['UND']).setValue(und);
-        if(fsKey) keyToRowFS[fsKey]=rowIndex;
+  if(fsKey) keyToRowFS[fsKey]=rowIndex;
       }
       sh.getRange(rowIndex,idx['CANTIDAD SOLICITADA']).setValue(qty);
       if(idx['RESPONSABLE SOLICITUD']) sh.getRange(rowIndex,idx['RESPONSABLE SOLICITUD']).setValue(resp);
