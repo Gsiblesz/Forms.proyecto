@@ -51,23 +51,13 @@ h1 { margin: 0 0 16px; font-size: 28px; }
 }
 .row {
   display: grid;
-  /* producto | buscar | cantidad | borrar */
-  grid-template-columns: 1fr 40px 140px 40px;
+  grid-template-columns: 1fr 140px 40px;
   gap: 8px;
   background: rgba(255,255,255,0.03);
   border: 1px solid var(--border);
   padding: 12px;
   border-radius: 12px;
 }
-
-/* Cuando hay columna de Familia por fila */
-.row.has-family {
-  /* producto | familia | buscar | cantidad | borrar */
-  grid-template-columns: 1fr 160px 40px 140px 40px;
-}
-
-.qty-cell { display:flex; flex-direction: column; gap: 4px; }
-.row-label { font-size: 12px; color: var(--muted); }
 
 select, input[type="number"] {
   width: 100%;
@@ -100,37 +90,6 @@ select, input[type="number"] {
   background: #0f1533;
   color: var(--muted);
 }
-
-.search-btn {
-  width: 40px;
-  height: 40px;
-  border-radius: 8px;
-  border: 1px solid var(--border);
-  background: #0f1533;
-  color: var(--text);
-}
-.search-btn:hover { border-color: #2a3973; }
-
-/* Modal de búsqueda */
-.modal-overlay {
-  position: fixed; inset: 0; background: rgba(0,0,0,0.5);
-  display: flex; align-items: center; justify-content: center;
-  z-index: 1000;
-}
-.modal {
-  width: min(560px, 92vw);
-  background: #0f1533; color: var(--text);
-  border: 1px solid var(--border);
-  border-radius: 12px; padding: 14px;
-  box-shadow: 0 10px 30px rgba(0,0,0,0.4);
-}
-.modal h3 { margin: 0 0 8px; font-size: 16px; color: var(--muted); }
-.modal .searchbox { width: 100%; padding: 10px 12px; border-radius: 10px; border: 1px solid var(--border); background:#0b1028; color: var(--text); }
-.modal .list { max-height: 50vh; overflow: auto; margin-top: 10px; border-top: 1px solid var(--border); }
-.modal .item { padding: 8px 6px; border-bottom: 1px solid #0e1636; cursor: pointer; display:flex; justify-content: space-between; gap:8px; }
-.modal .item:hover, .modal .item.active { background: rgba(79,140,255,0.15); }
-.modal .name { font-weight: 600; }
-.modal .code { color: var(--muted); font-size: 12px; }
 
 .actions { display: flex; gap: 10px; justify-content: flex-end; }
 

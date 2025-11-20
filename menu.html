@@ -14,7 +14,6 @@
       .card { border:1px solid var(--border); border-radius:16px; padding:16px; background:#0f0f12; min-height:180px; }
       .card h3 { margin:0 0 10px; font-size:1.2rem; line-height:1.2; }
       .card p { margin:6px 0 0; color: var(--muted); font-size: 0.9rem; }
-  .card .instr { margin:8px 0 0; color: #9fd3ff; font-size:0.88rem; }
       .swatch { height:10px; border-radius:8px; margin-bottom:14px; }
       .card a { display:inline-block; margin-top:12px; padding:8px 12px; font-size:0.9rem; }
       @media (max-width: 768px) { .card { padding:12px; } .card h3 { font-size:1rem; } }
@@ -60,7 +59,7 @@
           </div>
           <div>
             <label style="display:block; font-size:12px; color:var(--muted); margin-bottom:6px;">URL del Web App</label>
-            <input id="gs-url" type="text" placeholder="https://script.google.com/.../exec" style="width:100%; padding:10px 12px; border-radius:10px; border:1px solid var(--border); background:#0f1533; color:var(--text);" />
+            <input id="gs-url" type="text" placeholder="https://script.google.com/macros/s/AKfycbxklVSWsrwPrSNiEYiqWZ4Cl2b4kIGZ2iwxGEIoh2aI5YaRJpm2-o8BpWleXkyTjhIkHA/exec" style="width:100%; padding:10px 12px; border-radius:10px; border:1px solid var(--border); background:#0f1533; color:var(--text);" />
           </div>
           <div>
             <label style="display:block; font-size:12px; color:var(--muted); margin-bottom:6px;">Token (opcional)</label>
@@ -125,21 +124,12 @@
           if (tab === 'registros' && form.id === 'tata-libertad') {
             displayTitle = 'LA TATA DE LA LIBERTAD REGISTROS';
           }
-          // Instrucciones cortas por formulario (puedes extenderlas)
-          const INSTRUCTIONS = {
-            'tata-libertad': 'Registro de entregas a sedes y ventas. Selecciona sede, fecha y productos; si marcas "Registro sin solicitud" se puede generar un ID automático.',
-            'solicitudes-pedido': 'Solicitud de producto terminado a tiendas y sedes. Indica cantidades solicitadas y responsable.',
-            'registros': 'Inventario de producto terminado: registra cierres y devoluciones. Nota: devoluciones aplican solo a BELLO CAMPO.',
-            'merma': 'Registro rápido de merma. La sede se fija automáticamente a BELLO CAMPO; indica fecha, producto y cantidad.'
-          };
-          const instrHtml = INSTRUCTIONS[form.id] ? `<p class="instr">${INSTRUCTIONS[form.id]}</p>` : '';
           const card = document.createElement('div');
           card.className = 'card';
           card.innerHTML = `
             <div class="swatch" style="background:${form.color}"></div>
             <h3>${displayTitle}</h3>
             ${form.description ? `<p>${form.description}</p>` : ''}
-            ${instrHtml}
             <a class="btn" href="${url.toString()}">Abrir</a>
           `;
           cont.appendChild(card);
@@ -227,7 +217,7 @@
         function resetSettingsUI() {
           // Valores por defecto del cliente
           const defaults = {
-            url: 'https://script.google.com/macros/s/AKfycbxZBceoDkdIiMFI8Pcnbb5jicvOMCZHc_4UFljlAR4Zk6rodozqUuAv4RUxy1pkHvj_eA/exec',
+            url: 'https://script.google.com/macros/s/AKfycbzoiYlfw6P2qEoUZ7T_QVLqvDcXvASc8j_MxKx7SXG4y_e7FW0SdbyKJdnGaMXFXu88lA/exec', // actualizado (2025-11-13)
             enabled: true,
             token: 'Pasantias90',
           };

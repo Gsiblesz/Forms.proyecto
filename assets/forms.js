@@ -318,20 +318,43 @@ window.FORMS = [
           "PASTELITO DE HOJALDRE DE POLLO CONGELADO 1 UND ST",
           "PASTELITO DE HOJALDRE RICOTA Y ESPINACA 1 UND ST"
         ]
-      }
+      // ...objeto de registro de LA TATA DE LA LIBERTAD...
+},
+{
+  id: "solicitud-tata-libertad",
+  title: "Solicitud - LA TATA DE LA LIBERTAD",
+  sheetTab: "SOLICITUDES",
+  color: "#f1c4b8", // color distintivo para solicitudes
+  description: "Formulario de solicitud de productos para LA TATA DE LA LIBERTAD.",
+  sedes: ["SL", "LPG", "SC", "SCH", "PB-2", "E PB-2", "LG", "VM", "BC"],
+  fields: ["FECHA", "SEDE", "PRODUCTO", "CANTIDAD", "RESPONSABLE"],
+  // <-- Aquí debes pegar la línea
+  catalog: window.FORMS.find(f => f.id === "tata-libertad")?.catalog || [],
+},
+// ...siguiente formulario...}
     ]
   },
   {
     id: "solicitudes-pedido",
     title: "LA TATA DE LA LIBERTAD SOLICITUDES",
-    sheetTab: "LA TATA DE LA LIBERTAD",
+    sheetTab: "SOLICITUDES",
     color: "#b8f1c4",
     description: "Formulario de Operaciones de Manufactura. Solicitud de producto terminado a tiendas, sedes y ventas al mayor.",
-    inheritFrom: "tata-libertad"
+    inheritFrom: "solicitudes"
+  },
+  // Formulario de MERMA (solo producto y cantidad)
+  // Reutiliza el catálogo y mapas de LA TATA mediante inheritFrom
+  {
+    id: "merma",
+    title: "MERMA - LA TATA DE LA LIBERTAD",
+    sheetTab: "SOLICITUDES",
+    color: "#ffb3b3",
+    description: "Registro rápido de merma. Solo producto y cantidad.",
+    inheritFrom: "solicitudes"
   },
   {
     id: "registros",
-    title: "INVENTARIO PRODUCTO TERMINADO",
+    title: "Registros - INVENTARIO PRODUCTO TERMINADO",
   sheetTab: "INVENTARIO DE PRODUCTO TERMINADO",
     color: "#e7e0f1", // lila
     description: "Registro de inventario de cierre y devoluciones.",
@@ -484,14 +507,6 @@ window.FORMS = [
       "CROISSSANT CHOCO OSCURO 160 GR 1 UND ST": "UND",
       "HOJALDRE DE MANZANA 160 GR 1 UND ST": "UND"
     }
-  },
-  {
-    id: "merma",
-    title: "MERMA — LA TATA DE LA LIBERTAD",
-    sheetTab: "LA TATA DE LA LIBERTAD",
-    color: "#ffd7d7",
-    description: "Registro rápido de merma: fecha, producto y cantidad. La sede se fija a BELLO CAMPO.",
-    inheritFrom: "tata-libertad"
   },
 ];
 

@@ -2,10 +2,8 @@
 
 const CONFIG = {
   TOKEN: 'Pasantias90',
-  SPREADSHEET_ID: '1TlsAVq8pauOxwHHCWGL8I740pGZ5ftpYC3gwvEPo1eE',
-  // Default sheet name to use when no target or meta.sheet is provided
-  // La pestaña que antes era SOLICITUDES ahora se formaliza como AJUSTES
-  SHEET: 'AJUSTES',
+  SPREADSHEET_ID: '1ILKpwrkow0daq1RqIPxsiE8ad9XaM2NsE8_AlR7MD0o',
+  SHEET: 'SOLICITUDES',
   // Agregamos columna HORA (antes de FECHA); HORA contendrá "HH:mm dd-mm-aaaa" y FECHA solo "dd-mm-aaaa"
   HEAD: ['HORA','FECHA','SEDE','FAMILIA','PRODUCTO','CODIGO','UND','CANTIDAD SOLICITADA','RESPONSABLE SOLICITUD','CANTIDAD ENTREGADA','RESPONSABLE ENTREGA'],
   DELIVERY_MATCH_SCOPE: 'FECHA_SEDE_PRODUCTO',
@@ -14,22 +12,13 @@ const CONFIG = {
   ALWAYS_CREATE_WHEN_SIN_SOLICITUD: true,
   TARGETS: {
     'inventario-pt': {
-      // Libro de INVENTARIO DE PRODUCTO TERMINADO (donde estará la pestaña AJUSTES)
-      ssurl: 'https://docs.google.com/spreadsheets/d/1TlsAVq8pauOxwHHCWGL8I740pGZ5ftpYC3gwvEPo1eE/edit',
+      ssurl: 'https://docs.google.com/spreadsheets/d/1TlsAVq8pauOxwHHCWGL8I740pGZ5ftpYC3gwvEPo1eE/edit?gid=0#gid=0',
       sheet: 'INVENTARIO DE PRODUCTO TERMINADO',
       // Mantener primeros 5 como están y reordenar bloque de producto
       // entry_id, FECHA (con hora incluida), TIPO, SEDE, EMPRESA, CODIGO, PRODUCTO, UND, CANTIDAD, RESPONSABLE
-      // Nuevo ajuste: mantener columna HORA antes de FECHA; HORA contendrá Date (hora+fecha) y FECHA dd-mm-aaaa
-      HEAD: ['entry_id','HORA','FECHA','TIPO','SEDE','EMPRESA','CODIGO','PRODUCTO','UND','CANTIDAD','RESPONSABLE'],
+      // Nuevo ajuste: eliminar columna HORA y escribir en FECHA el valor "HH:mm dd-mm-aaaa"
+      HEAD: ['entry_id','FECHA','TIPO','SEDE','EMPRESA','CODIGO','PRODUCTO','UND','CANTIDAD','RESPONSABLE'],
       MODE: 'append'
-    }
-    ,
-    // Target explícito para el formulario LA TATA de la libertad
-    'tata-libertad': {
-      // Libro "LA TATA DE LA LIBERTAD" (formulario específico)
-      ssurl: 'https://docs.google.com/spreadsheets/d/1MQlP9wx199xW-gIYwf4FcjdANG9TLEkSjORiNmxJH5s/edit?gid=1387627441',
-      sheet: 'LA TATA DE LA LIBERTAD',
-      HEAD: ['HORA','FECHA','SEDE','FAMILIA','PRODUCTO','CODIGO','UND','CANTIDAD SOLICITADA','RESPONSABLE SOLICITUD','CANTIDAD ENTREGADA','RESPONSABLE ENTREGA']
     }
   }
 };
@@ -38,9 +27,6 @@ const CONFIG = {
 function _defaultRequiredHead_(){ return CONFIG.HEAD.concat(['MERMA']); }
 function _headFor(formId){ var t=CONFIG.TARGETS&&CONFIG.TARGETS[formId]; return (t&&Array.isArray(t.HEAD))?t.HEAD.slice(0):_defaultRequiredHead_(); }
 function _canonSede(raw){ const s=String(raw||'').trim().toUpperCase(); if(s==='BC'||s==='BELLO CAMPO') return 'BELLO CAMPO'; if(s==='E PB-2'||s==='E PB2'||s==='E PB') return 'E PB-2'; if(s==='PB'||s==='PALOS GRANDES'||s==='LOS PALOS GRANDES') return 'LOS PALOS GRANDES'; if(s==='SL'||s==='SAN LUIS') return 'SAN LUIS'; return s; }
-
-// Raw sede: return the trimmed, uppercased value exactly as provided by the client
-function _rawSede(raw){ return String(raw||'').trim().toUpperCase(); }
 
 function doGet(e){
   var p=(e&&e.parameter)||{};
@@ -63,8 +49,7 @@ function doGet(e){
     var formId=String(p.formId||'');
     var tgt=(CONFIG.TARGETS&&CONFIG.TARGETS[formId])||null;
     var ss=tgt?_resolveSpreadsheet(tgt.ssid,tgt.ssurl):_resolveSpreadsheet(p.ssid,p.ssurl);
-  // Prefer explicit target sheet from CONFIG.TARGETS; fallback to query param or default
-  var sheetName=(tgt&&tgt.sheet) || p.sheet || CONFIG.SHEET;
+    var sheetName=p.sheet||(tgt&&tgt.sheet)||CONFIG.SHEET;
     var head=_headFor(formId);
     var sh=_getOrCreateSheet(ss,sheetName,head);
     // Si es un target específico, reconciliar nombre y orden de columnas (p.ej. PRODUCTO/PRODUCTOS, orden esperado)
@@ -89,71 +74,26 @@ function doPost(e){
     var raw=(e&&e.postData&&e.postData.contents)||'';
     if(!raw) return _json({ok:false,error:'no body'},400);
     var payload=JSON.parse(raw);
-    // Aceptar dos formas: 1) payload directamente con { items, meta }
-    //                  2) wrapper externo { entry: { items, meta, ... } } (ej. algunos formularios)
-    if(payload && !payload.items && payload.entry && (payload.entry.items || payload.entry.meta)){
-      payload = payload.entry;
-    }
-  if(!payload || !payload.items) return _json({ok:false,error:'bad payload, missing items'},400);
-  // Ensure payload.meta is defined to avoid ReferenceError (some clients omit meta)
-  var meta = payload.meta || {};
-  // tipoMeta puede venir vacío; normalizamos recortando espacios y forzando mayúsculas
-  var tipoMeta = meta && meta.tipo ? String(meta.tipo).trim().toUpperCase() : '';
-  // Si no se proporciona tipo pero el formId indica 'merma', inferir MERMA
-  try{ if(!tipoMeta && meta && meta.formId && String(meta.formId).toLowerCase().indexOf('merma')!==-1) tipoMeta = 'MERMA'; }catch(_){ }
+    if(!payload||!payload.items||!payload.meta) return _json({ok:false,error:'bad payload'},400);
+    var qToken=(e&&e.parameter&&e.parameter.token)||'';
+    var token=payload.token||qToken||'';
+    if(CONFIG.TOKEN&&token&&token!==CONFIG.TOKEN) return _json({ok:false,error:'invalid token'},401);
 
-    var qToken = (e && e.parameter && e.parameter.token) || '';
-    var token = payload.token || qToken || '';
-    if (CONFIG.TOKEN && token && token !== CONFIG.TOKEN) return _json({ ok: false, error: 'invalid token' }, 401);
-
-    var p = (e && e.parameter) || {};
-    var formId = (meta.formId) || '';
-    // First try explicit mapping by formId
-    var tgt = (CONFIG.TARGETS && CONFIG.TARGETS[formId]) || null;
-    // Defensive fallback: if no formId or no target matched, try to detect target from meta.ssurl/meta.ssid or meta.sheet
-    if(!tgt && meta){
-      try{
-        for(var _k in CONFIG.TARGETS){
-          var _t = CONFIG.TARGETS[_k];
-          if(!_t) continue;
-          // try match by ssurl id
-          var m = String(_t.ssurl||'').match(/\/d\/([^/]+)/);
-          var tid = (m && m[1])?m[1]:'';
-          if(tid && (String(meta.ssurl||'').indexOf(tid)!==-1 || String(meta.ssid||'').indexOf(tid)!==-1)){
-            tgt = _t; formId = _k; break;
-          }
-          // try match by sheet/tab name
-          if(meta.sheet && _t.sheet && String(meta.sheet).trim().toLowerCase()===String(_t.sheet).trim().toLowerCase()){
-            tgt = _t; formId = _k; break;
-          }
-        }
-      }catch(_){ /* ignore detection errors */ }
-    }
-
-    // Resolve sheetName and spreadsheet according to the resolved target (if any)
-    var sheetName = (tgt && tgt.sheet) || meta.sheet || p.sheet || CONFIG.SHEET;
-    var ss = tgt ? _resolveSpreadsheet(tgt.ssid, tgt.ssurl) : _resolveSpreadsheet(meta.ssid || p.ssid, meta.ssurl || p.ssurl);
-    try{ Logger.log('doPost resolved formId=%s target=%s sheet=%s', formId, tgt?('yes-'+(tgt.sheet||'')):'none', sheetName); }catch(_){ }
-
-    // Temporary debugging logs: help determine which deployed script handled the request
-    try{
-      Logger.log('doPost start: formId=%s, tipoMeta=%s, token=%s', formId, tipoMeta, token);
-      Logger.log('meta payload: %s', JSON.stringify(meta));
-      Logger.log('resolved sheetName: %s', sheetName);
-      try{ Logger.log('resolved spreadsheet id: %s', ss && ss.getId ? ss.getId() : 'no-ss'); }catch(e){ Logger.log('error getting ss id: %s', String(e)); }
-    }catch(_){ /* ignore logging errors */ }
-
+    var p=(e&&e.parameter)||{};
+    var formId=(payload.meta&&payload.meta.formId)||'';
+    var tgt=(CONFIG.TARGETS&&CONFIG.TARGETS[formId])||null;
+    var sheetName=(tgt&&tgt.sheet)||(payload.meta&&payload.meta.sheet)||p.sheet||CONFIG.SHEET;
+    var ss=tgt?_resolveSpreadsheet(tgt.ssid,tgt.ssurl):_resolveSpreadsheet((payload.meta&&payload.meta.ssid)||p.ssid,(payload.meta&&payload.meta.ssurl)||p.ssurl);
+    var tipoMeta=(payload.meta&&payload.meta.tipo)?String(payload.meta.tipo).toUpperCase():'';
     var res;
-    if (tgt && tgt.MODE === 'append') {
-      res = appendInventario(payload, { ss: ss, sheetName: sheetName, head: tgt.HEAD, formId: formId });
-    } else if (tipoMeta === 'MERMA') {
-      // Flujo MERMA: usar HEAD del target si existe, si no usar el HEAD por defecto (incluye MERMA)
-      var headForFlow = (tgt && Array.isArray(tgt.HEAD)) ? tgt.HEAD : _defaultRequiredHead_();
-      res = upsertMerma(payload, { ss: ss, sheetName: sheetName, head: headForFlow, formId: formId });
+    if(tgt&&tgt.MODE==='append'){
+      res=appendInventario(payload,{ss:ss,sheetName:sheetName,head:tgt.HEAD});
+    } else if(tipoMeta==='MERMA'){
+      // Flujo MERMA: usar HEAD por defecto (que ya incluye MERMA)
+      res=upsertMerma(payload,{ss:ss,sheetName:sheetName,head:_defaultRequiredHead_()});
     } else {
-      var tipo = (tipoMeta === 'SOLICITUD') ? 'SOLICITUD' : 'ENTREGADO';
-      var headForFlow = (tgt && Array.isArray(tgt.HEAD)) ? tgt.HEAD : _defaultRequiredHead_();
-      res = upsertOneSheet(payload, tipo, { ss: ss, sheetName: sheetName, head: headForFlow, formId: formId });
+      var tipo=(tipoMeta==='SOLICITUD')?'SOLICITUD':'ENTREGADO';
+      res=upsertOneSheet(payload,tipo,{ss:ss,sheetName:sheetName,head:_defaultRequiredHead_()});
     }
     var debug=(p.debug==='1')||!!payload.debug;
     if(debug){
@@ -169,7 +109,7 @@ function doPost(e){
 function appendInventario(payload,opts){
   var ss=opts.ss;
   var sheetName=opts.sheetName;
-  var head=opts.head||['entry_id','HORA','FECHA','TIPO','SEDE','EMPRESA','CODIGO','PRODUCTO','UND','CANTIDAD','RESPONSABLE'];
+  var head=opts.head||['entry_id','FECHA','TIPO','SEDE','EMPRESA','CODIGO','PRODUCTO','UND','CANTIDAD','RESPONSABLE'];
   var sh=_getOrCreateSheet(ss,sheetName,head);
   // Verificación fuerte del encabezado: si falta HORA/FECHA o hay PRODUCTOS/CANTIDAD duplicado, reconstruye la hoja
   try{
@@ -194,67 +134,16 @@ function appendInventario(payload,opts){
     }
   }catch(_){ _reconcileHeaderAndOrder_(sh, head); }
   var idx=_ensureColumnsAndIndex_(sh,head);
-  // Asegurar explícitamente que la columna HORA exista en el encabezado
-  try{
-    if(!idx['HORA']){
-      // Escribir los encabezados requeridos en las primeras columnas para forzar HORA
-      sh.getRange(1,1,1,head.length).setValues([head]);
-      sh.setFrozenRows(1);
-      idx=_ensureColumnsAndIndex_(sh,head);
-    }
-  }catch(_){ }
-  // Asegurar formato de fecha/hora y zona horaria del Spreadsheet
-  try{
-    if(ss && ss.getSpreadsheetTimeZone && ss.getSpreadsheetTimeZone() !== 'America/Caracas'){
-      ss.setSpreadsheetTimeZone('America/Caracas');
-    }
-  }catch(_){ }
-  // Apply number formats only to data rows (skip header row) to avoid errors
-  // Do per-column try/catch and surface which column fails so the WebApp response
-  // includes an indicator (column name and index) when formatting fails.
-  var maxRows = sh.getMaxRows();
-  var dataRows = Math.max(0, maxRows - 1); // exclude header
-  if(dataRows > 0){
-    if(idx['HORA']){
-      try{
-        sh.getRange(2, idx['HORA'], dataRows, 1).setNumberFormat('hh:mm yyyy-mm-dd');
-      }catch(e){
-        throw new Error('No puedes configurar el formato de número en la columna "HORA" (col '+idx['HORA']+'): '+String(e));
-      }
-    }
-    if(idx['FECHA']){
-      try{
-        sh.getRange(2, idx['FECHA'], dataRows, 1).setNumberFormat('yyyy-mm-dd');
-      }catch(e){
-        throw new Error('No puedes configurar el formato de número en la columna "FECHA" (col '+idx['FECHA']+'): '+String(e));
-      }
-    }
-  }
 
   var entryId=String(payload.id||('e-'+Math.random().toString(36).slice(2,8))).toUpperCase();
   var fechaRaw=payload.meta&&payload.meta.fechaTxt?String(payload.meta.fechaTxt).trim():_asDateString(payload.meta&&payload.meta.fecha);
-  var fechaIso=_asDateString(fechaRaw); // yyyy-mm-dd unificado
-  // Tomar hora solo si viene del cliente (HOY). Si no, dejar sin hora.
-  var hora=(payload.meta&&payload.meta.horaTxt)?String(payload.meta.horaTxt).trim():'';
+  var fecha=_asDateDisplay_(fechaRaw); // siempre dd-mm-aaaa
+  var hora=(payload.meta&&payload.meta.horaTxt)?String(payload.meta.horaTxt).trim():_asTimeString(new Date());
   var tipo=String(payload.meta&&payload.meta.tipo||'').toUpperCase();
-  // Decide whether to preserve raw sede codes (for forms like 'tata-libertad')
-  var formIdOpt = (opts && opts.formId) ? String(opts.formId).toLowerCase() : '';
-  var sede = (formIdOpt === 'tata-libertad') ? _rawSede(payload.meta&&payload.meta.sede) : _canonSede(payload.meta&&payload.meta.sede);
+  var sede=_canonSede(payload.meta&&payload.meta.sede);
   var empresa=String(payload.meta&&payload.meta.familia||'').trim();
   var resp=String(payload.meta&&payload.meta.responsable||'').trim();
-  // Construir Date real para FECHA con hora de Caracas
-  var horaFecha=((hora?hora:'') + (fechaIso?(' '+fechaIso):'')).trim();
-  var dt=null; // Date con la hora/minuto indicados sobre la fecha seleccionada
-  try{
-    if(hora){
-  var fkey=_asDateKey_(fechaIso); // YYYY-MM-DD
-      var p=fkey.split('-');
-      var yy=Number(p[0]||0), mm1=Number(p[1]||1)-1, dd=Number(p[2]||1);
-      var hm=String(hora||'').split(':');
-      var HH=Number(hm[0]||0), MM=Number(hm[1]||0);
-      dt=new Date(yy,mm1,dd,HH,MM,0,0);
-    }
-  }catch(_){ dt=null; }
+  var horaFecha=(hora?hora:'') + (fecha?(' '+fecha):''); // FECHA mostrará hora+fecha
 
   var items=Array.isArray(payload.items)?payload.items:[];
   var rows=[];
@@ -263,12 +152,11 @@ function appendInventario(payload,opts){
     var codigo=String(it.code||'').trim();
     var und=String(it.und||'').trim();
     var prod=String(it.product||it.name||'').trim();
-  var qty=_toInt(it.quantity);
+    var qty=Number(it.quantity||0);
 
     var vals=new Array(head.length).fill('');
-  if(idx['entry_id'])  vals[idx['entry_id']-1]=entryId;
-  if(idx['HORA'])      vals[idx['HORA']-1]=dt||'';
-  if(idx['FECHA'])     vals[idx['FECHA']-1]=fechaIso||'';
+    if(idx['entry_id'])  vals[idx['entry_id']-1]=entryId;
+  if(idx['FECHA'])     vals[idx['FECHA']-1]=horaFecha||'';
     if(idx['TIPO'])      vals[idx['TIPO']-1]=tipo||'';
     if(idx['SEDE'])      vals[idx['SEDE']-1]=sede||'';
     if(idx['EMPRESA'])   vals[idx['EMPRESA']-1]=empresa||'';
@@ -298,105 +186,44 @@ function upsertMerma(payload,opts){
   // Limpia columna obsoleta si existe
   _dropColumnByExactHeader_(sh,'TIPO_MERMA');
   var idx=_ensureColumnsAndIndex_(sh,requiredHead);
-  // Forzar existencia de columna HORA en el encabezado si por alguna razón falta
-  try{
-    if(!idx['HORA']){
-      sh.getRange(1,1,1,requiredHead.length).setValues([requiredHead]);
-      sh.setFrozenRows(1);
-      idx=_ensureColumnsAndIndex_(sh,requiredHead);
-    }
-  }catch(_){ }
 
-  // Asegurar zona horaria y formatos: HORA mostrará hora+fecha, FECHA mostrará dd-mm-aaaa
-  try{
-    if(ss && ss.getSpreadsheetTimeZone && ss.getSpreadsheetTimeZone() !== 'America/Caracas'){
-      ss.setSpreadsheetTimeZone('America/Caracas');
-    }
-  }catch(_){ }
-  try{
-    var maxRows2 = sh.getMaxRows();
-    var dataRows2 = Math.max(0, maxRows2 - 1);
-    if(dataRows2 > 0){
-      if(idx['HORA']) sh.getRange(2, idx['HORA'], dataRows2, 1).setNumberFormat('hh:mm yyyy-mm-dd');
-      if(idx['FECHA']) sh.getRange(2, idx['FECHA'], dataRows2, 1).setNumberFormat('yyyy-mm-dd');
-    }
-  }catch(_){ }
-  
-  // Asegurar zona horaria y formatos: HORA mostrará hora+fecha, FECHA mostrará dd-mm-aaaa
-  try{
-    if(ss && ss.getSpreadsheetTimeZone && ss.getSpreadsheetTimeZone() !== 'America/Caracas'){
-      ss.setSpreadsheetTimeZone('America/Caracas');
-    }
-  }catch(_){ }
-  try{
-    var maxRows3 = sh.getMaxRows();
-    var dataRows3 = Math.max(0, maxRows3 - 1);
-    if(dataRows3 > 0){
-      if(idx['HORA']) sh.getRange(2, idx['HORA'], dataRows3, 1).setNumberFormat('hh:mm dd-mm-yyyy');
-      if(idx['FECHA']) sh.getRange(2, idx['FECHA'], dataRows3, 1).setNumberFormat('dd-mm-yyyy');
-    }
-  }catch(_){ }
-
-  var fechaRaw=payload.meta&&payload.meta.fechaTxt?String(payload.meta.fechaTxt).trim():_asDateString(payload.meta&&payload.meta.fecha);
-  // Normalizar la fecha del payload a clave YYYY-MM-DD para emparejado consistente
-  var fechaIso=_asDateString(fechaRaw);
-  var fechaKey=_asDateKey_(fechaIso);
-  // MERMA aplica solo para BELLO CAMPO (BC)
-  var sede = 'BELLO CAMPO';
-  // Hora solo si viene del cliente (HOY). Si no, sin hora.
-  var hora=(payload.meta&&payload.meta.horaTxt)?String(payload.meta.horaTxt).trim():'';
-  var horaFecha = hora ? (hora + (fechaIso?(' '+fechaIso):'')) : '';
-  // Construir Date real si la hora está presente para escribir en la hoja usando tipo Date
-  var dt=null;
-  try{
-    if(hora){
-      var fkey=_asDateKey_(fechaIso); // YYYY-MM-DD
-      var p=fkey.split('-');
-      var yy=Number(p[0]||0), mm1=Number(p[1]||1)-1, dd=Number(p[2]||1);
-      var hm=String(hora||'').split(':');
-      var HH=Number(hm[0]||0), MM=Number(hm[1]||0);
-      dt=new Date(yy,mm1,dd,HH,MM,0,0);
-    }
-  }catch(_){ dt=null; }
+  var fecha=payload.meta&&payload.meta.fechaTxt?String(payload.meta.fechaTxt).trim():_asDateString(payload.meta&&payload.meta.fecha);
+  var fechaKey=_asDateKey_(fecha);
+  var sede=_canonSede(payload.meta&&payload.meta.sede)||'BELLO CAMPO';
+  var hora=(payload.meta&&payload.meta.horaTxt)?String(payload.meta.horaTxt).trim():_asTimeString(new Date());
+  var horaFecha = (hora?hora:'') + (fecha?(' '+fecha):'');
 
   var values=sh.getDataRange().getValues();
   var map={};
-  // Build tolerant lookup map with multiple key variants to improve matching
   for(var r=2;r<=values.length;r++){
     var row=values[r-1];
-    var f=_asDateKey_(row[idx['FECHA']-1]);
+  var f=_asDateString(row[idx['FECHA']-1]);
     var s=_canonSede(row[idx['SEDE']-1]);
     var c=idx['CODIGO']?_norm(row[idx['CODIGO']-1]):'';
     var p=idx['PRODUCTO']?_norm(row[idx['PRODUCTO']-1]):'';
-    var gen=_pref(c,p);
-    if(!f||!s) continue;
-    // primary normalized key
-    if(gen) map[f+'|'+s+'|GEN|'+gen]=r;
-    // explicit code and product keys (if present)
-    if(c) map[f+'|'+s+'|CODE|'+c]=r;
-    if(p) map[f+'|'+s+'|PROD|'+p]=r;
+    var idKey=_pref(c,p);
+    if(f&&s&&idKey) map[f+'|'+s+'|'+idKey]=r;
   }
 
-    var items=Array.isArray(payload.items)?payload.items:[];
+  var items=Array.isArray(payload.items)?payload.items:[];
   var updates=0;
   for(var i=0;i<items.length;i++){
     var it=items[i]||{};
     var nombre=_norm(it.product||it.name);
     var codigo=_norm(it.code);
     var und=_norm(it.und);
-  var qty=_toInt(it.quantity);
-  var idKey=_pref(codigo,nombre);
-  // fsKey: fecha|sede|idKey used for indexing/creating new rows when needed
+    var qty=Number(it.quantity||0);
+    var idKey=_pref(codigo,nombre);
     if(!idKey) continue;
-  // normalize single fsKey expression (use fechaKey for consistent YYYY-MM-DD keys)
-  var fsKey = (fechaKey && sede && idKey) ? (fechaKey+'|'+sede+'|'+idKey) : '';
+
+  var fsKey=(fechaKey&&sede&&idKey)?(fechaKey+'|'+sede+'|'+idKey):'';
     var rowIndex=map[fsKey]||0;
 
     if(!rowIndex){
       rowIndex=sh.getLastRow()+1;
       sh.insertRows(rowIndex,1);
-    if(idx['HORA'] && dt) sh.getRange(rowIndex,idx['HORA']).setValue(dt);
-  if(fechaIso)  sh.getRange(rowIndex,idx['FECHA']).setValue(fechaIso);
+  if(idx['HORA'] && horaFecha) sh.getRange(rowIndex,idx['HORA']).setValue(horaFecha);
+  if(fecha)  sh.getRange(rowIndex,idx['FECHA']).setValue(fecha);
       if(sede)   sh.getRange(rowIndex,idx['SEDE']).setValue(sede);
       if(nombre) sh.getRange(rowIndex,idx['PRODUCTO']).setValue(nombre);
       if(codigo) sh.getRange(rowIndex,idx['CODIGO']).setValue(codigo);
@@ -405,7 +232,7 @@ function upsertMerma(payload,opts){
       if(idx['RESPONSABLE SOLICITUD']) sh.getRange(rowIndex,idx['RESPONSABLE SOLICITUD']).setValue('');
       if(idx['CANTIDAD ENTREGADA'])    sh.getRange(rowIndex,idx['CANTIDAD ENTREGADA']).setValue('');
       if(idx['RESPONSABLE ENTREGA'])   sh.getRange(rowIndex,idx['RESPONSABLE ENTREGA']).setValue('');
-  if(idx['MERMA'])                  sh.getRange(rowIndex,idx['MERMA']).setValue(_toInt(qty));
+      if(idx['MERMA'])                  sh.getRange(rowIndex,idx['MERMA']).setValue(qty);
       map[fsKey]=rowIndex;
       updates++;
       continue;
@@ -413,11 +240,11 @@ function upsertMerma(payload,opts){
 
     if(idx['MERMA']){
       var cell=sh.getRange(rowIndex,idx['MERMA']);
-      var cur=_toInt(cell.getValue());
-      var next=cur+qty;
+      var cur=Number(cell.getValue()||0);
+      var next=(Number.isFinite(cur)?cur:0)+qty;
       cell.setValue(next);
     }
-  if(idx['HORA']&&dt){ sh.getRange(rowIndex,idx['HORA']).setValue(dt); }
+    if(idx['HORA']&&horaFecha){ sh.getRange(rowIndex,idx['HORA']).setValue(horaFecha); }
     updates++;
   }
   return {sheet:sheetName,count:updates,idx:idx};
@@ -433,117 +260,67 @@ function upsertOneSheet(payload,tipo,opts){
   // Limpiar columna obsoleta que no aplica a este formulario
   _dropColumnByExactHeader_(sh,'TIPO_MERMA');
   var idx=_ensureColumnsAndIndex_(sh,requiredHead);
-  // Forzar existencia de columna HORA en el encabezado si por alguna razón falta
-  try{
-    if(!idx['HORA']){
-      sh.getRange(1,1,1,requiredHead.length).setValues([requiredHead]);
-      sh.setFrozenRows(1);
-      idx=_ensureColumnsAndIndex_(sh,requiredHead);
-    }
-  }catch(_){ }
 
-  var fechaRaw='';
-  if(payload.meta&&payload.meta.fechaTxt) fechaRaw=String(payload.meta.fechaTxt).trim(); else fechaRaw=_asDateString(payload.meta&&payload.meta.fecha);
-  // Normalizar la fecha del payload a clave YYYY-MM-DD para emparejado consistente
-  var fechaIso=_asDateString(fechaRaw);
-  var fechaKey=_asDateKey_(fechaIso);
-  // Construir Date real si la hora está presente para escribir en la hoja usando tipo Date
-  var hora=(payload.meta&&payload.meta.horaTxt)?String(payload.meta.horaTxt).trim():'';
-  var dt=null;
-  try{
-    if(hora && fechaIso){
-      var fkey=_asDateKey_(fechaIso);
-      var p=fkey.split('-');
-      var yy=Number(p[0]||0), mm1=Number(p[1]||1)-1, dd=Number(p[2]||1);
-      var hm=String(hora||'').split(':');
-      var HH=Number(hm[0]||0), MM=Number(hm[1]||0);
-      dt=new Date(yy,mm1,dd,HH,MM,0,0);
-    }
-  }catch(_){ dt=null; }
-  // Asegurar formatos de columnas HORA/FECHA
-  try{
-    var maxRows4 = sh.getMaxRows();
-    var dataRows4 = Math.max(0, maxRows4 - 1);
-    if(dataRows4 > 0){
-      if(idx['HORA']) sh.getRange(2, idx['HORA'], dataRows4, 1).setNumberFormat('hh:mm yyyy-mm-dd');
-      if(idx['FECHA']) sh.getRange(2, idx['FECHA'], dataRows4, 1).setNumberFormat('yyyy-mm-dd');
-    }
-  }catch(_){ }
-  // Ensure SEDE is always 'BC' for MERMA
-  if (tipo === 'MERMA') {
-    payload.meta.sede = 'BC'; // Force SEDE to BC
-  }
-  // Respect raw codes for specific forms (e.g. 'tata-libertad') otherwise use canonical names
-  var formIdOpt = (opts && opts.formId) ? String(opts.formId).toLowerCase() : '';
-  var sede = (formIdOpt === 'tata-libertad') ? _rawSede(payload.meta&&payload.meta.sede) : _canonSede(payload.meta&&payload.meta.sede);
+  var fecha='';
+  if(payload.meta&&payload.meta.fechaTxt) fecha=String(payload.meta.fechaTxt).trim(); else fecha=_asDateString(payload.meta&&payload.meta.fecha);
+  var fechaKey=_asDateKey_(fecha);
+  var sede=_canonSede(payload.meta&&payload.meta.sede);
   var resp=_norm(payload.meta&&payload.meta.responsable);
   var solicitudId=(payload.meta&&payload.meta.solicitudId)?String(payload.meta.solicitudId):'';
   var sinSolicitud=!!(payload.meta&&payload.meta.sinSolicitud);
-  // Hora solo si viene del cliente (HOY). Si no, sin hora.
-  var hora=(payload.meta&&payload.meta.horaTxt)?String(payload.meta.horaTxt).trim():'';
-  var horaFecha = hora ? (hora + (fechaIso?(' '+fechaIso):'')) : '';
+  var hora=(payload.meta&&payload.meta.horaTxt)?String(payload.meta.horaTxt).trim():_asTimeString(new Date());
+  var horaFecha = (hora?hora:'') + (fecha?(' '+fecha):'');
 
   var values=sh.getDataRange().getValues();
   var keyToRowFS={};
   var blockByFS={};
 
-  // Decide whether this flow should use raw sede codes (formIdOpt already set above)
   for(var r=2;r<=values.length;r++){
     var row=values[r-1];
-    var f=_asDateKey_(row[idx['FECHA']-1]);
-    var s = (formIdOpt === 'tata-libertad') ? _rawSede(row[idx['SEDE']-1]) : _canonSede(row[idx['SEDE']-1]);
+  var f=_asDateString(row[idx['FECHA']-1]);
+    var s=_canonSede(row[idx['SEDE']-1]);
     var c=idx['CODIGO']?_norm(row[idx['CODIGO']-1]):'';
     var p=idx['PRODUCTO']?_norm(row[idx['PRODUCTO']-1]):'';
     var idKey=_pref(c,p);
-    if(f&&s&&idKey) keyToRowFS[f+'|'+s+'|'+idKey]=r;
+    if(f&&s){
+      keyToRowFS[f+'|'+s+'|'+idKey]=r;
+      var fsOnly=f+'|'+s;
+      if(!blockByFS[fsOnly]) blockByFS[fsOnly]={first:r,last:r}; else blockByFS[fsOnly].last=r;
+    }
   }
 
-  // Registro resumen para depuración: número de entradas indexadas
-  try{ Logger.log('upsertOneSheet: keyToRowFS entries=%d, sheet=%s', Object.keys(keyToRowFS).length, sheetName); }catch(_){/* ignore */}
-
-    var items=Array.isArray(payload.items)?payload.items:[];
   var updates=[];
   var missing=[];
+  var items=Array.isArray(payload.items)?payload.items:[];
   for(var i=0;i<items.length;i++){
     var it=items[i];
     var nombre=_norm(it&&(it.product||it.producto||it.name));
     var codigo=_norm(it&&it.code);
     var und=_norm(it&&it.und);
-  var qty=_toInt((it&&it.quantity));
+    var qty=Number((it&&it.quantity)||0);
     var idKey=_pref(codigo,nombre);
-  // fsKey used for indexing/creating new rows when needed (fechaKey|sede|idKey)
-  var fsKey = (fechaKey && sede && idKey) ? (fechaKey+'|'+sede+'|'+idKey) : '';
-    // Try multiple key variants for matching: prefer CODE, then PROD, then GEN
-    var rowIndex=null;
-    if(fechaKey && sede){
-      var candCode = codigo? (fechaKey+'|'+sede+'|CODE|'+codigo) : null;
-      var candProd = nombre? (fechaKey+'|'+sede+'|PROD|'+nombre) : null;
-      var candGen = idKey? (fechaKey+'|'+sede+'|GEN|'+idKey) : null;
-      if(candCode && keyToRowFS[candCode]) rowIndex=keyToRowFS[candCode];
-      else if(candProd && keyToRowFS[candProd]) rowIndex=keyToRowFS[candProd];
-      else if(candGen && keyToRowFS[candGen]) rowIndex=keyToRowFS[candGen];
-      else rowIndex=null;
-    }
+  var fsKey=(fechaKey&&sede&&idKey)?(fechaKey+'|'+sede+'|'+idKey):'';
+    var rowIndex=fsKey?keyToRowFS[fsKey]:null;
 
     if(tipo==='SOLICITUD'){
       if(!rowIndex){
-          var placeKey=(fechaIso||'')+'|'+(sede||'');
+        var placeKey=(fecha||'')+'|'+(sede||'');
         var block=blockByFS[placeKey];
         var insertAt=((block&&block.last)||sh.getLastRow())+1;
         sh.insertRows(insertAt,1);
         rowIndex=insertAt;
-    if(blockByFS[placeKey]) blockByFS[placeKey].last=rowIndex; else blockByFS[placeKey]={first:rowIndex,last:rowIndex};
-  if(idx['HORA']&&dt) sh.getRange(rowIndex,idx['HORA']).setValue(dt);
-  if(fechaIso)  sh.getRange(rowIndex,idx['FECHA']).setValue(fechaIso);
+        if(blockByFS[placeKey]) blockByFS[placeKey].last=rowIndex; else blockByFS[placeKey]={first:rowIndex,last:rowIndex};
+  if(idx['HORA']&&horaFecha) sh.getRange(rowIndex,idx['HORA']).setValue(horaFecha);
+  if(fecha)  sh.getRange(rowIndex,idx['FECHA']).setValue(fecha);
         if(sede)   sh.getRange(rowIndex,idx['SEDE']).setValue(sede);
         if(nombre) sh.getRange(rowIndex,idx['PRODUCTO']).setValue(nombre);
         if(codigo) sh.getRange(rowIndex,idx['CODIGO']).setValue(codigo);
         if(und)    sh.getRange(rowIndex,idx['UND']).setValue(und);
-  if(fsKey) keyToRowFS[fsKey]=rowIndex;
+        if(fsKey) keyToRowFS[fsKey]=rowIndex;
       }
       sh.getRange(rowIndex,idx['CANTIDAD SOLICITADA']).setValue(qty);
       if(idx['RESPONSABLE SOLICITUD']) sh.getRange(rowIndex,idx['RESPONSABLE SOLICITUD']).setValue(resp);
-  if(idx['HORA']&&dt) sh.getRange(rowIndex,idx['HORA']).setValue(dt);
+      if(idx['HORA']&&horaFecha) sh.getRange(rowIndex,idx['HORA']).setValue(horaFecha);
       updates.push({row:rowIndex,tipo:tipo,qty:qty});
       continue;
     }
@@ -551,27 +328,27 @@ function upsertOneSheet(payload,tipo,opts){
     if(rowIndex){
       if(idx['CANTIDAD ENTREGADA'])  sh.getRange(rowIndex,idx['CANTIDAD ENTREGADA']).setValue(qty);
       if(idx['RESPONSABLE ENTREGA']) sh.getRange(rowIndex,idx['RESPONSABLE ENTREGA']).setValue(resp);
-  if(idx['HORA']&&dt) sh.getRange(rowIndex,idx['HORA']).setValue(dt);
+      if(idx['HORA']&&horaFecha) sh.getRange(rowIndex,idx['HORA']).setValue(horaFecha);
       updates.push({row:rowIndex,tipo:tipo,qty:qty});
       continue;
     }
 
     if(sinSolicitud&&CONFIG.ALWAYS_CREATE_WHEN_SIN_SOLICITUD){
-  var placeKeyE=(fechaIso||'')+'|'+(sede||'');
+      var placeKeyE=(fecha||'')+'|'+(sede||'');
       var blockE=blockByFS[placeKeyE];
       var insertAtE=((blockE&&blockE.last)||sh.getLastRow())+1;
       sh.insertRows(insertAtE,1);
       rowIndex=insertAtE;
       if(blockByFS[placeKeyE]) blockByFS[placeKeyE].last=rowIndex; else blockByFS[placeKeyE]={first:rowIndex,last:rowIndex};
-  if(idx['HORA']&&dt) sh.getRange(rowIndex,idx['HORA']).setValue(dt);
-  if(fechaIso) sh.getRange(rowIndex,idx['FECHA']).setValue(fechaIso);
+  if(idx['HORA']&&horaFecha) sh.getRange(rowIndex,idx['HORA']).setValue(horaFecha);
+  if(fecha) sh.getRange(rowIndex,idx['FECHA']).setValue(fecha);
       if(sede)  sh.getRange(rowIndex,idx['SEDE']).setValue(sede);
       if(nombre) sh.getRange(rowIndex,idx['PRODUCTO']).setValue(nombre);
       if(codigo) sh.getRange(rowIndex,idx['CODIGO']).setValue(codigo);
       if(und)    sh.getRange(rowIndex,idx['UND']).setValue(und);
       if(idx['CANTIDAD ENTREGADA'])  sh.getRange(rowIndex,idx['CANTIDAD ENTREGADA']).setValue(qty);
       if(idx['RESPONSABLE ENTREGA']) sh.getRange(rowIndex,idx['RESPONSABLE ENTREGA']).setValue(resp);
-  if(idx['HORA']&&dt) sh.getRange(rowIndex,idx['HORA']).setValue(dt);
+      if(idx['HORA']&&horaFecha) sh.getRange(rowIndex,idx['HORA']).setValue(horaFecha);
       updates.push({row:rowIndex,tipo:tipo,qty:qty});
       continue;
     }
@@ -596,11 +373,8 @@ function _resolveSpreadsheet(ssid,ssurl){
 }
 
 function _getOrCreateSheet(ss,name,header){
-  // Normalize sheet name: avoid creating sheets with empty names
-  var sheetName = String(name||'').trim();
-  if(!sheetName) sheetName = CONFIG.SHEET || 'Sheet1';
-  var sh=ss.getSheetByName(sheetName);
-  if(!sh) sh=ss.insertSheet(sheetName);
+  var sh=ss.getSheetByName(name);
+  if(!sh) sh=ss.insertSheet(name);
   // Sólo inicializa encabezados si la hoja está vacía (no pisa hojas existentes)
   var lastRow=sh.getLastRow();
   if(lastRow<=0){
@@ -747,24 +521,6 @@ function _ensureColumnsAndIndex_(sh,requiredHead){
 
 function _norm(v){ return String(v==null?'':v).trim().toUpperCase(); }
 function _pref(a,b){ return a?a:b; }
-// Convierte valores a número robustamente: maneja strings con coma decimal, nulos y NaN
-// Convierte a entero (estricto): acepta sólo enteros; si recibe number se trunca.
-// No acepta comas ni decimales en strings — entradas no enteras devuelven 0.
-function _toInt(v){
-  try{
-    if(v==null) return 0;
-    if(typeof v==='number'){
-      if(!Number.isFinite(v)) return 0;
-      return Math.trunc(v);
-    }
-    var s=String(v).trim();
-    if(s==='') return 0;
-    // aceptar opcionalmente signo y sólo dígitos
-    var m=s.match(/^[-+]?\d+$/);
-    if(m) return parseInt(s,10);
-    return 0;
-  }catch(_){ return 0; }
-}
 function _asDateString(x){
   if(!x) return '';
   if(Object.prototype.toString.call(x)==='[object Date]'){
@@ -806,7 +562,21 @@ function _asTimeString(d){
     return hh+':'+mm;
   }catch(_){ return ''; }
 }
+
 // Asegura formato de fecha de visualización dd-mm-aaaa
-// (función _asDateDisplay_ se eliminó porque no estaba en uso; reintroducir si se necesita)
-// Ensure HORA is formatted as yyyy-mm-dd hh:mm
-  // Nota: no introducir código que use variables externas aquí; las funciones manejan formato/columnas localmente.
+function _asDateDisplay_(s){
+  if(!s) return '';
+  var str=String(s).trim();
+  var mISO=str.match(/^(\d{4})-(\d{2})-(\d{2})$/); // YYYY-MM-DD -> DD-MM-YYYY
+  if(mISO){ return mISO[3]+'-'+mISO[2]+'-'+mISO[1]; }
+  var mDMY=str.match(/^(\d{2})-(\d{2})-(\d{4})$/); // ya dd-mm-aaaa
+  if(mDMY){ return str; }
+  var d=new Date(str);
+  if(!isNaN(d)){
+    var dd=('0'+d.getDate()).slice(-2);
+    var mm=('0'+(d.getMonth()+1)).slice(-2);
+    var yy=d.getFullYear();
+    return dd+'-'+mm+'-'+yy;
+  }
+  return str;
+}

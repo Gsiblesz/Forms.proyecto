@@ -54,9 +54,8 @@
         <div class="meta">
           <div>
             <label>Sede</label>
-            <select id="meta-sede" name="meta-sede" required>
-              <option value="" selected disabled>Selecciona una sede…</option>
-            </select>
+            <input id="meta-sede" list="sede-list" type="text" placeholder="Ej: SL, LPG, SC..." />
+            <datalist id="sede-list"></datalist>
           </div>
           <div>
             <label id="label-resp">Responsable</label>
@@ -70,9 +69,6 @@
                 <button type="button" id="set-today" class="btn outline" title="Usar fecha de hoy">Hoy</button>
                 <button type="button" id="set-yesterday" class="btn outline" title="Usar fecha de ayer">Ayer</button>
               </div>
-              <span class="muted" style="font-size:0.9em">Hora (Caracas): <strong id="meta-hora-caracas">--:--</strong></span>
-              <span id="meta-hora-indicator" class="muted" style="font-size:0.9em;margin-left:12px;padding:4px 8px;border-radius:6px;background:#333;color:#fff;display:inline-block">Hora: —</span>
-              <div class="muted" style="font-size:0.85em;margin-left:8px">Presiona <strong>Hoy</strong> para incluir la hora actual de Caracas en el registro. Si eliges <strong>Ayer</strong> la hora no será registrada.</div>
             </div>
           </div>
         </div>
@@ -92,7 +88,6 @@
         <ul>
           <li>Usa "+ Agregar producto" para añadir tantas filas como necesites.</li>
           <li>Selecciona el producto y la cantidad (número entero ≥ 0).</li>
-          <li>Si presionas <strong>Hoy</strong> antes de guardar, el formulario registrará la hora actual de Caracas junto con la fecha; si seleccionas otra fecha (por ejemplo <strong>Ayer</strong>) la hora no se guardará.</li>
           <li>Al guardar, se almacenan los items localmente (localStorage).</li>
           <li>Puedes exportar todo a CSV o borrar los registros guardados.</li>
         </ul>
