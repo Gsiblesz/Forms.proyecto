@@ -328,8 +328,7 @@ window.FORMS = [
   description: "Formulario de solicitud de productos para LA TATA DE LA LIBERTAD.",
   sedes: ["SL", "LPG", "SC", "SCH", "PB-2", "E PB-2", "LG", "VM", "BC"],
   fields: ["FECHA", "SEDE", "PRODUCTO", "CANTIDAD", "RESPONSABLE"],
-  // <-- Aquí debes pegar la línea
-  catalog: window.FORMS.find(f => f.id === "tata-libertad")?.catalog || [],
+  catalog: null, // se rellena después de definir window.FORMS
 },
 // ...siguiente formulario...}
     ]
@@ -509,6 +508,44 @@ window.FORMS = [
     }
   },
 ];
+
+// Sincronizar catálogos derivados sin acceder a window.FORMS antes de tiempo
+(function syncDerivedCatalogs() {
+  const list = Array.isArray(window.FORMS) ? window.FORMS : [];
+  if (!list.length) return;
+  const base = list.find(f => f.id === "tata-libertad");
+  const solicitud = list.find(f => f.id === "solicitud-tata-libertad");
+  if (!base || !solicitud) return;
+  const buildCatalogFromBase = () => {
+    if (Array.isArray(base.catalog) && base.catalog.length) {
+      return base.catalog.slice();
+    }
+    if (Array.isArray(base.groups) && base.groups.length) {
+      const flat = [];
+      base.groups.forEach(group => {
+        if (!group || !Array.isArray(group.products)) return;
+        group.products.forEach(name => {
+          const code = (base.codeMap && base.codeMap[name]) ? base.codeMap[name] : name;
+          flat.push({ id: code, name });
+        });
+      });
+      return flat;
+    }
+    return [];
+  };
+  if (!Array.isArray(solicitud.catalog) || !solicitud.catalog.length) {
+    solicitud.catalog = buildCatalogFromBase();
+  }
+  if (!solicitud.codeMap && base.codeMap) {
+    solicitud.codeMap = base.codeMap;
+  }
+  if (!solicitud.undMap && base.undMap) {
+    solicitud.undMap = base.undMap;
+  }
+  if (!solicitud.sedes && Array.isArray(base.sedes)) {
+    solicitud.sedes = base.sedes.slice();
+  }
+})();
 
 // Utilidad para encontrar config por id o devolver la primera
 window.getFormConfig = function(formId) {

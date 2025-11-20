@@ -1,6 +1,6 @@
 // Serverless proxy to read recent entries from Google Apps Script Web App
 // Configure in Vercel Project Settings → Environment Variables:
-// - GS_WEBAPP_URL: https://script.google.com/macros/s/AKfycbxklVSWsrwPrSNiEYiqWZ4Cl2b4kIGZ2iwxGEIoh2aI5YaRJpm2-o8BpWleXkyTjhIkHA/exec
+// - GS_WEBAPP_URL: https://script.google.com/macros/s/.../exec
 // - GS_TOKEN: your token (optional, e.g., Pasantias90)
 
 export default async function handler(req, res) {
